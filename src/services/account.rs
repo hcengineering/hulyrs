@@ -27,18 +27,10 @@ use super::{Result, ServiceClient, jwt::Claims, types::*};
 #[derive(serde::Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginInfo {
-    // Account
-    pub account: Option<PersonUuid>,
+    pub account: PersonUuid,
     pub name: Option<String>,
     pub social_id: Option<PersonId>,
     pub token: Option<String>,
-
-    // Workspace
-    pub workspace: Option<WorkspaceUuid>,
-    pub workspace_url: Option<String>,
-    pub workspace_data_id: Option<WorkspaceDataId>,
-    pub endpoint: Option<String>,
-    pub role: Option<String>,
 }
 
 #[derive(serde::Deserialize, Debug, Clone)]
@@ -132,13 +124,11 @@ pub struct SelectWorkspaceParams {
     pub external_regions: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceLoginInfo {
-    pub account: PersonUuid,
-    pub name: Option<String>,
-    pub social_id: Option<PersonId>,
-    pub token: Option<String>,
+    #[serde(flatten)]
+    pub base: LoginInfo,
 
     pub workspace: WorkspaceUuid,
     pub workspace_url: Option<String>,
@@ -230,6 +220,10 @@ impl AccountClient {
     }
 
     pub async fn get_login_info_by_token(&self) -> Result<LoginInfo> {
+        self.http.service(self, "getLoginInfoByToken", ()).await
+    }
+
+    pub async fn get_workspace_login_info_by_token(&self) -> Result<WorkspaceLoginInfo> {
         self.http.service(self, "getLoginInfoByToken", ()).await
     }
 
