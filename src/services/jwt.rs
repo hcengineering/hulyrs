@@ -51,7 +51,7 @@ impl Claims {
             .ok_or_else(|| super::Error::Other("No workspace in claims"))
     }
 
-    pub fn encode(self) -> Result<SecretString, super::Error> {
+    pub fn encode(&self) -> Result<SecretString, super::Error> {
         self.encode_ext(CONFIG.token_secret.as_bytes())
     }
 
