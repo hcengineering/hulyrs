@@ -141,7 +141,7 @@ pub struct WorkspaceLoginInfo {
     pub token: Option<String>,
 
     pub workspace: WorkspaceUuid,
-    pub workspace_url: String,
+    pub workspace_url: Option<String>,
     pub workspace_data_id: Option<WorkspaceDataId>,
     pub endpoint: Url,
     pub role: String,
