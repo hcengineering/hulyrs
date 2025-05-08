@@ -65,6 +65,20 @@ type RichText = String;
 type MessageData = json::Value;
 type BlobId = String;
 
+pub trait PartitionKeyProvider {
+    fn partition_key(&self) -> &str;
+}
+
+macro_rules! message_event {
+    ($name:ident, $field:ident) => {
+        impl PartitionKeyProvider for $name {
+            fn partition_key(&self) -> &str {
+                &self.$field
+            }
+        }
+    };
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Builder)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateMessageEvent {
@@ -96,6 +110,7 @@ pub struct CreateMessageEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created: Option<Timestamp>,
 }
+message_event!(CreateMessageEvent, card);
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]

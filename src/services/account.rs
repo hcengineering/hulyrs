@@ -131,7 +131,7 @@ pub struct WorkspaceLoginInfo {
     pub base: LoginInfo,
 
     pub workspace: WorkspaceUuid,
-    pub workspace_url: String,
+    pub workspace_url: Option<String>,
     pub workspace_data_id: Option<WorkspaceDataId>,
     pub endpoint: Url,
     pub role: String,
@@ -184,7 +184,7 @@ impl AccountClient {
         let account = claims.account;
         let base = crate::CONFIG.account_service.clone();
         let http = CLIENT.clone();
-        let token = claims.to_owned().encode()?;
+        let token = claims.encode()?;
 
         Ok(Self {
             http,
@@ -198,7 +198,7 @@ impl AccountClient {
         let account = claims.account;
         let base = self.base.clone();
         let http = self.http.clone();
-        let token = claims.to_owned().encode()?;
+        let token = claims.encode()?;
 
         Ok(Self {
             http,
@@ -288,4 +288,8 @@ impl AccountClient {
     pub async fn get_user_workspaces(&self) -> Result<Vec<Workspace>> {
         self.http.service(self, "getUserWorkspaces", ()).await
     }
+
+    //   pub async fn get_login_info_by_token(&self) -> Result<LoginInfo> {
+    //       self.http.service(self, "getLoginInfoByToken", ()).await
+    //  }
 }

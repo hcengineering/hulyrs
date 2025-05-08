@@ -32,6 +32,9 @@ pub enum Error {
     Request(#[from] reqwest::Error),
 
     #[error(transparent)]
+    Kafka(#[from] rdkafka::error::KafkaError),
+
+    #[error(transparent)]
     Url(#[from] url::ParseError),
 
     #[error("{0}")]
@@ -51,6 +54,13 @@ pub struct Config {
     pub token_secret: String,
     pub account_service: Url,
     pub kvs_service: Url,
+    pub kafka_bootstrap: Vec<String>,
+}
+
+impl Config {
+    pub fn bootstrap_servers(&self) -> String {
+        self.kafka_bootstrap.join(",")
+    }
 }
 
 pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
@@ -58,6 +68,7 @@ pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
         token_secret = "secret"
         account_service = "http://localhost:8080/account"
         kvs_service = "http://localhost:8094"
+        kafka_bootstrap = ["localhost:19092"]
     "#;
 
     let builder = config::Config::builder()
