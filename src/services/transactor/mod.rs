@@ -26,10 +26,10 @@ pub mod event;
 pub mod person;
 
 pub struct TransactorClient {
-    workspace: WorkspaceUuid,
+    pub workspace: WorkspaceUuid,
+    pub base: Url,
     token: SecretString,
     http: HttpClient,
-    base: Url,
 }
 
 static CLIENT: LazyLock<HttpClient> =
