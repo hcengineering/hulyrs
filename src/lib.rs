@@ -16,6 +16,7 @@
 use std::sync::LazyLock;
 
 pub use reqwest::StatusCode;
+use serde::{Deserialize, Deserializer};
 use url::Url;
 
 pub mod services;
@@ -49,12 +50,24 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(serde::Deserialize, Debug)]
+fn de_string_list<'de, D>(deserializer: D) -> std::result::Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(String::deserialize(deserializer)?
+        .split(',')
+        .map(str::trim)
+        .map(str::to_owned)
+        .collect())
+}
+
+#[derive(Deserialize, Debug)]
 pub struct Config {
     pub token_secret: String,
     pub account_service: Url,
     pub kvs_service: Url,
 
+    #[serde(deserialize_with = "de_string_list", rename = "kafka_bootstrap")]
     pub kafka_bootstrap_servers: Vec<String>,
 
     #[serde(default, rename = "rdkafka_debug")]
@@ -72,6 +85,7 @@ pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
         token_secret = "secret"
         account_service = "http://localhost:8080/account"
         kvs_service = "http://localhost:8094"
+        kafka_bootstrap = "localhost:19092"
     "#;
 
     let builder = config::Config::builder()
