@@ -42,7 +42,7 @@ impl super::TokenProvider for &TransactorClient {
 }
 
 impl TransactorClient {
-    pub fn new(base: Url, claims: Claims) -> Result<Self> {
+    pub fn new(base: Url, claims: &Claims) -> Result<Self> {
         let base = base.force_http_scheme();
         let workspace = claims.workspace()?;
         let token = claims.encode()?;

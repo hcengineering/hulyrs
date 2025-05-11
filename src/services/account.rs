@@ -194,7 +194,7 @@ impl AccountClient {
         let account = claims.account;
         let base = crate::CONFIG.account_service.clone();
         let http = CLIENT.clone();
-        let token = claims.to_owned().encode()?;
+        let token = claims.encode()?;
 
         Ok(Self {
             http,
@@ -208,7 +208,7 @@ impl AccountClient {
         let account = claims.account;
         let base = self.base.clone();
         let http = self.http.clone();
-        let token = claims.to_owned().encode()?;
+        let token = claims.encode()?;
 
         Ok(Self {
             http,
