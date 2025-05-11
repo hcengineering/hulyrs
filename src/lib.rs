@@ -32,6 +32,9 @@ pub enum Error {
     Request(#[from] reqwest::Error),
 
     #[error(transparent)]
+    Kafka(#[from] rdkafka::error::KafkaError),
+
+    #[error(transparent)]
     Url(#[from] url::ParseError),
 
     #[error("{0}")]
@@ -51,6 +54,17 @@ pub struct Config {
     pub token_secret: String,
     pub account_service: Url,
     pub kvs_service: Url,
+
+    pub kafka_bootstrap_servers: Vec<String>,
+
+    #[serde(default, rename = "rdkafka_debug")]
+    pub kafka_rdkafka_debug: Option<String>,
+}
+
+impl Config {
+    pub fn kafka_bootstrap_servers(&self) -> String {
+        self.kafka_bootstrap_servers.join(",")
+    }
 }
 
 pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
