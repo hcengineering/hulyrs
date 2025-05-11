@@ -65,6 +65,20 @@ type RichText = String;
 type MessageData = json::Value;
 type BlobId = String;
 
+pub trait PartitionKeyProvider {
+    fn partition_key(&self) -> &str;
+}
+
+macro_rules! message_event {
+    ($name:ident, $field:ident) => {
+        impl PartitionKeyProvider for $name {
+            fn partition_key(&self) -> &str {
+                &self.$field
+            }
+        }
+    };
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Builder)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateMessageEvent {
@@ -96,6 +110,7 @@ pub struct CreateMessageEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created: Option<Timestamp>,
 }
+message_event!(CreateMessageEvent, card);
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -104,6 +119,7 @@ pub struct RemoveMessagesEvent {
     pub card: CardId,
     pub messages: Vec<MessageId>,
 }
+message_event!(RemoveMessagesEvent, card);
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -127,6 +143,7 @@ pub struct CreatePatchEvent {
     pub content: RichText,
     pub creator: PersonId,
 }
+message_event!(CreatePatchEvent, card);
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -137,6 +154,7 @@ pub struct CreateReactionEvent {
     pub reaction: String,
     pub creator: PersonId,
 }
+message_event!(CreateReactionEvent, card);
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -147,6 +165,7 @@ pub struct RemoveReactionEvent {
     pub reaction: String,
     pub creator: PersonId,
 }
+message_event!(RemoveReactionEvent, card);
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -160,6 +179,7 @@ pub struct CreateFileEvent {
     pub filename: String,
     pub creator: PersonId,
 }
+message_event!(CreateFileEvent, card);
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -170,6 +190,7 @@ pub struct RemoveFileEvent {
     pub blob_id: BlobId,
     pub creator: PersonId,
 }
+message_event!(RemoveFileEvent, card);
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -179,6 +200,7 @@ pub struct CreateThreadEvent {
     pub message: MessageId,
     pub thread: CardId,
 }
+message_event!(CreateThreadEvent, card);
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -188,6 +210,7 @@ pub struct UpdateThreadEvent {
     pub replies: RepliesUpdate,
     pub last_reply: Option<Date>,
 }
+message_event!(UpdateThreadEvent, thread);
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -203,3 +226,4 @@ pub struct RemoveMessagesGroupEvent {
     pub card: CardId,
     pub blob_id: BlobId,
 }
+message_event!(RemoveMessagesGroupEvent, card);
