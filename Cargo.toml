@@ -21,6 +21,7 @@ uuid = { version = "1.16.0", features = ["serde"] }
 config = "0.15.11"
 secrecy = "0.10.3"
 rdkafka = "0.37.0"
+serde_with = "3.12.0"
 
 [dev-dependencies]
 anyhow = "1.0.98"
