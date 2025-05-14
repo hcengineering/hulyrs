@@ -64,6 +64,9 @@ pub struct Config {
 
     #[serde(default, rename = "rdkafka_debug")]
     pub kafka_rdkafka_debug: Option<String>,
+
+    #[serde_as(as = "StringWithSeparator::<CommaSeparator, String>")]
+    pub external_regions: Vec<String>,
 }
 
 impl Config {
@@ -78,6 +81,7 @@ pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
         account_service = "http://localhost:8080/account"
         kvs_service = "http://localhost:8094"
         kafka_bootstrap = "localhost:19092"
+        external_regions = ""
     "#;
 
     let builder = config::Config::builder()
