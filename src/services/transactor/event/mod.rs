@@ -20,8 +20,8 @@ use rdkafka::{
     message::{Header, OwnedHeaders},
     producer::FutureProducer,
 };
-use serde::{Deserialize, Serialize};
-use serde_json as json;
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde_json::{self as json, Value};
 
 use crate::{
     CONFIG,
@@ -85,23 +85,42 @@ impl<T: serde::Serialize> Envelope<T> {
     }
 }
 
-pub trait EventClient<T: Serialize> {
-    fn request_raw(&self, envelope: &Envelope<T>) -> impl Future<Output = Result<()>>;
+pub trait EventClient {
+    fn request_raw<T: Serialize, R: DeserializeOwned>(
+        &self,
+        envelope: &Envelope<T>,
+    ) -> impl Future<Output = Result<R>>;
 
-    fn request(&self, r#type: MessageRequestType, request: T) -> impl Future<Output = Result<()>> {
+    fn request_for_result<T: Serialize, R: DeserializeOwned>(
+        &self,
+        r#type: MessageRequestType,
+        request: T,
+    ) -> impl Future<Output = Result<R>> {
         async { Ok(self.request_raw(&Envelope::new(r#type, request)).await?) }
+    }
+
+    fn request<T: Serialize>(
+        &self,
+        r#type: MessageRequestType,
+        request: T,
+    ) -> impl Future<Output = Result<()>> {
+        async {
+            self.request_raw::<T, json::Value>(&Envelope::new(r#type, request))
+                .await
+                .map(|_| ())
+        }
     }
 }
 
-impl<T: Serialize> EventClient<T> for super::TransactorClient {
-    async fn request_raw(&self, envelope: &Envelope<T>) -> Result<()> {
+impl EventClient for super::TransactorClient {
+    async fn request_raw<T: Serialize, R: DeserializeOwned>(
+        &self,
+        envelope: &Envelope<T>,
+    ) -> Result<R> {
         let path = format!("/api/v1/event/{}", self.workspace);
         let url = self.base.join(&path)?;
 
-        let _: serde_json::Value =
-            <HttpClient as JsonClient>::post(&self.http, self, url, envelope).await?;
-
-        Ok(())
+        Ok(<HttpClient as JsonClient>::post(&self.http, self, url, envelope).await?)
     }
 }
 
