@@ -17,7 +17,7 @@ use std::sync::LazyLock;
 
 pub use reqwest::StatusCode;
 use serde::Deserialize;
-use serde_with::{StringWithSeparator, formats::CommaSeparator, serde_as};
+use serde_with::{DisplayFromStr, StringWithSeparator, formats::CommaSeparator, serde_as};
 use url::Url;
 
 pub mod services;
@@ -58,6 +58,9 @@ pub struct Config {
     pub account_service: Url,
     pub kvs_service: Url,
 
+    #[serde_as(as = "DisplayFromStr")]
+    pub log: tracing::Level,
+
     #[serde(rename = "kafka_bootstrap")]
     #[serde_as(as = "StringWithSeparator::<CommaSeparator, String>")]
     pub kafka_bootstrap_servers: Vec<String>,
@@ -81,6 +84,7 @@ pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
         account_service = "http://localhost:8080/account"
         kvs_service = "http://localhost:8094"
         kafka_bootstrap = "localhost:19092"
+        log = "INFO"
         external_regions = ""
     "#;
 
