@@ -23,8 +23,8 @@ use crate::services::{
 #[derive(Serialize, Debug, derive_builder::Builder)]
 #[serde(rename_all = "camelCase")]
 pub struct EnsurePersonRequest {
-    social_type: SocialIdType,
-    social_value: String,
+    pub social_type: SocialIdType,
+    pub social_value: String,
 
     #[builder(setter(into))]
     pub first_name: String,
