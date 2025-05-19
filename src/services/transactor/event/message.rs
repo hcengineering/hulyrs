@@ -13,6 +13,8 @@
 // limitations under the License.
 //
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json as json;
 
@@ -82,6 +84,9 @@ macro_rules! message_event {
 #[derive(Serialize, Deserialize, Debug, Clone, Builder)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateMessageEvent {
+    #[builder(setter(into, strip_option), default)]
+    pub id: Option<String>,
+
     #[builder(default)]
     pub message_type: MessageType,
 
@@ -112,38 +117,87 @@ pub struct CreateMessageEvent {
 }
 message_event!(CreateMessageEvent, card);
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Builder)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoveMessagesEvent {
-    // pub r#type: MessageRequestEventType,
+    #[builder(setter(into))]
     pub card: CardId,
+
+    #[builder(setter(into))]
     pub messages: Vec<MessageId>,
 }
 message_event!(RemoveMessagesEvent, card);
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum PatchType {
     Update,
-    AddReaction,
-    RemoveReaction,
-    AddReply,
-    RemoveReply,
-    AddFile,
-    RemoveFile,
+    //AddReaction,
+    //RemoveReaction,
+    //AddReply,
+    //RemoveReply,
+    //AddFile,
+    //RemoveFile,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Builder, Default)]
+pub struct PatchData {
+    content: Option<RichText>,
+    data: Option<MessageData>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Builder)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatePatchEvent {
-    //  pub r#type: MessageRequestEventType,
+    #[builder(setter(custom), default = PatchType::Update)]
     pub patch_type: PatchType,
+
+    #[builder(setter(into))]
     pub card: CardId,
+
+    #[builder(setter(into))]
     pub message: MessageId,
-    pub content: RichText,
+
+    #[builder(setter(into))]
+    pub message_created: Date,
+
+    #[builder(setter(custom))]
+    pub data: PatchData,
+
+    #[builder(setter(into))]
     pub creator: PersonId,
 }
+
+impl CreatePatchEventBuilder {
+    pub fn content(&mut self, content: RichText) -> &mut Self {
+        if self.data.is_none() {
+            self.data = Some(PatchData::default());
+        }
+
+        self.data.as_mut().unwrap().content = Some(content);
+        self
+    }
+
+    pub fn data(&mut self, data: MessageData) -> &mut Self {
+        if self.data.is_none() {
+            self.data = Some(PatchData::default());
+        }
+
+        self.data.as_mut().unwrap().data = Some(data);
+        self
+    }
+}
 message_event!(CreatePatchEvent, card);
+
+/*
+type: MessageRequestEventType.CreatePatch
+  patchType: PatchType
+  card: CardID
+  message: MessageID
+  messageCreated: Date
+  data: PatchData
+  creator: SocialID
+  */
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -167,17 +221,37 @@ pub struct RemoveReactionEvent {
 }
 message_event!(RemoveReactionEvent, card);
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Builder)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateFileEvent {
     //  pub r#type: MessageRequestEventType,
+    #[builder(setter(into))]
     pub card: CardId,
+
+    #[builder(setter(into))]
     pub message: MessageId,
+
+    #[builder(setter(into))]
+    pub message_created: Date,
+
+    #[builder(setter(into))]
     pub blob_id: BlobId,
+
+    #[builder(setter(into), default)]
     pub size: u32,
+
+    #[builder(setter(into))]
     pub file_type: String,
+
+    #[builder(setter(into))]
     pub filename: String,
+
+    #[builder(setter(into))]
     pub creator: PersonId,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[builder(setter(into, strip_option), default)]
+    pub meta: Option<HashMap<String, String>>,
 }
 message_event!(CreateFileEvent, card);
 
@@ -227,3 +301,15 @@ pub struct RemoveMessagesGroupEvent {
     pub blob_id: BlobId,
 }
 message_event!(RemoveMessagesGroupEvent, card);
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CreateMessageResult {
+    pub id: String,
+    pub created: Date,
+}
+/*
+
+export interface RemoveMessagesResult {
+  messages: MessageID[]
+}
+*/
