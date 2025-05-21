@@ -40,8 +40,8 @@ static CLIENT: LazyLock<HttpClient> = LazyLock::new(|| {
 });
 
 impl KvsClient {
-    pub fn new(namespace: String, claims: Claims) -> Result<Self> {
-        let base = crate::CONFIG.kvs_service.clone();
+    pub fn new(base: &str, namespace: String, claims: Claims) -> Result<Self> {
+        let base = base.try_into()?;
         let http = CLIENT.clone();
         let token = claims.encode()?;
 

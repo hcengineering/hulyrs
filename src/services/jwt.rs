@@ -13,24 +13,26 @@
 // limitations under the License.
 //
 
-use std::{collections::HashMap, sync::LazyLock};
-
 use jsonwebtoken as jwt;
 use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
+use std::{collections::HashMap, sync::LazyLock};
 use uuid::Uuid;
-
-use crate::CONFIG;
 
 static SYSTEM_UUID: LazyLock<Uuid> =
     LazyLock::new(|| "1749089e-22e6-48de-af4e-165e18fbd2f9".parse().unwrap());
 static GUEST_UUID: LazyLock<Uuid> =
     LazyLock::new(|| "b6996120-416f-49cd-841e-e4a5d2e49c9b".parse().unwrap());
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone, derive_builder::Builder)]
+#[derive(Serialize, Deserialize, Default, Clone, derive_builder::Builder)]
 pub struct Claims {
     #[builder(setter(into))]
     pub account: Uuid,
+
+    #[serde(skip)]
+    #[builder(setter(into), default)]
+    encoding_key: String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(setter(into, strip_option), default)]
@@ -39,6 +41,16 @@ pub struct Claims {
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     #[builder(setter(custom), default)]
     pub extra: HashMap<String, String>,
+}
+
+impl Debug for Claims {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Claims")
+            .field("account", &self.account)
+            .field("workspace", &self.workspace)
+            .field("extra", &self.extra)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Claims {
@@ -52,7 +64,7 @@ impl Claims {
     }
 
     pub fn encode(&self) -> Result<SecretString, super::Error> {
-        self.encode_ext(CONFIG.token_secret.as_bytes())
+        self.encode_ext(&self.encoding_key)
     }
 
     pub fn encode_ext(&self, secret: impl AsRef<[u8]>) -> Result<SecretString, super::Error> {
@@ -108,6 +120,7 @@ impl ClaimsBuilder {
     }
 }
 
+#[cfg(feature = "actix")]
 pub mod actix {
     use actix_web::{dev::ServiceRequest, error};
 
@@ -115,8 +128,7 @@ pub mod actix {
 
     pub trait ServiceRequestExt {
         fn extract_token_raw(&self) -> Result<&str, actix_web::Error>;
-        fn extract_claims(&self) -> Result<Claims, actix_web::Error>;
-        fn extract_claims_ext(&self, secret: &[u8]) -> Result<Claims, actix_web::Error>;
+        fn extract_claims(&self, secret: &[u8]) -> Result<Claims, actix_web::Error>;
     }
 
     impl ServiceRequestExt for ServiceRequest {
@@ -128,11 +140,7 @@ pub mod actix {
                 .ok_or_else(|| error::ErrorUnauthorized("NoAuthToken"))
         }
 
-        fn extract_claims(&self) -> Result<Claims, actix_web::Error> {
-            Self::extract_claims_ext(self, crate::CONFIG.token_secret.as_bytes())
-        }
-
-        fn extract_claims_ext(&self, secret: &[u8]) -> Result<Claims, actix_web::Error> {
+        fn extract_claims(&self, secret: &[u8]) -> Result<Claims, actix_web::Error> {
             use super::jwt::{Algorithm, DecodingKey, Validation, decode};
             use std::collections::HashSet;
 

@@ -13,13 +13,9 @@
 // limitations under the License.
 //
 
-use std::sync::LazyLock;
-
 pub use reqwest::StatusCode;
-use serde::Deserialize;
-use serde_with::{DisplayFromStr, StringWithSeparator, formats::CommaSeparator, serde_as};
-use url::Url;
 
+pub mod config;
 pub mod services;
 
 #[derive(Debug, thiserror::Error)]
@@ -36,6 +32,7 @@ pub enum Error {
     #[error(transparent)]
     ReqwestMiddleware(#[from] reqwest_middleware::Error),
 
+    #[cfg(feature = "kafka")]
     #[error(transparent)]
     Kafka(#[from] rdkafka::error::KafkaError),
 
@@ -53,57 +50,3 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
-
-#[serde_as]
-#[derive(Deserialize, Debug)]
-pub struct Config {
-    pub token_secret: String,
-    pub account_service: Url,
-    pub kvs_service: Url,
-
-    #[serde_as(as = "DisplayFromStr")]
-    pub log: tracing::Level,
-
-    #[serde(rename = "kafka_bootstrap")]
-    #[serde_as(as = "StringWithSeparator::<CommaSeparator, String>")]
-    pub kafka_bootstrap_servers: Vec<String>,
-
-    #[serde(default, rename = "rdkafka_debug")]
-    pub kafka_rdkafka_debug: Option<String>,
-
-    #[serde_as(as = "StringWithSeparator::<CommaSeparator, String>")]
-    pub external_regions: Vec<String>,
-}
-
-impl Config {
-    pub fn kafka_bootstrap_servers(&self) -> String {
-        self.kafka_bootstrap_servers.join(",")
-    }
-}
-
-pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
-    const DEFAULTS: &str = r#"
-        token_secret = "secret"
-        account_service = "http://localhost:8080/account"
-        kvs_service = "http://localhost:8094"
-        kafka_bootstrap = "localhost:19092"
-        log = "INFO"
-        external_regions = ""
-    "#;
-
-    let builder = config::Config::builder()
-        .add_source(config::File::from_str(DEFAULTS, config::FileFormat::Toml));
-
-    let config = builder
-        .add_source(config::Environment::with_prefix("HULY"))
-        .build()
-        .and_then(|c| c.try_deserialize::<Config>());
-
-    match config {
-        Ok(config) => config,
-        Err(error) => {
-            eprintln!("configuration error: {}", error);
-            std::process::exit(1);
-        }
-    }
-});

@@ -186,9 +186,9 @@ static CLIENT: LazyLock<HttpClient> = LazyLock::new(|| {
 });
 
 impl AccountClient {
-    pub fn new(claims: &Claims) -> Result<Self> {
+    pub fn new(base: &str, claims: &Claims) -> Result<Self> {
         let account = claims.account;
-        let base = crate::CONFIG.account_service.clone();
+        let base = base.try_into()?;
         let http = CLIENT.clone();
         let token = claims.encode()?;
 
