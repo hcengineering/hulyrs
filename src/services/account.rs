@@ -15,7 +15,8 @@
 
 use std::sync::LazyLock;
 
-use reqwest::Client as HttpClient;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware as HttpClient};
+use reqwest_retry::{RetryTransientMiddleware, policies::ExponentialBackoff};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -176,8 +177,13 @@ impl super::BasePathProvider for &AccountClient {
     }
 }
 
-static CLIENT: LazyLock<HttpClient> =
-    LazyLock::new(|| reqwest::ClientBuilder::default().build().unwrap());
+static CLIENT: LazyLock<HttpClient> = LazyLock::new(|| {
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
+
+    ClientBuilder::new(reqwest::Client::new())
+        .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+        .build()
+});
 
 impl AccountClient {
     pub fn new(claims: &Claims) -> Result<Self> {

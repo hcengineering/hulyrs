@@ -31,7 +31,10 @@ pub enum Error {
     Serde(#[from] serde_json::Error),
 
     #[error(transparent)]
-    Request(#[from] reqwest::Error),
+    Reqwest(#[from] reqwest::Error),
+
+    #[error(transparent)]
+    ReqwestMiddleware(#[from] reqwest_middleware::Error),
 
     #[error(transparent)]
     Kafka(#[from] rdkafka::error::KafkaError),

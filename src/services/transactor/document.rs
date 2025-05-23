@@ -101,16 +101,16 @@ pub struct CreateDocument<T: Serialize> {
     #[builder(setter(into))]
     object_class: String,
 
-    #[builder(setter(into), default)]
+    #[builder(setter(into, strip_option), default)]
     modified_on: Option<Timestamp>,
 
-    #[builder(setter(into), default)]
+    #[builder(setter(into, strip_option), default)]
     modified_by: Option<PersonId>,
 
-    #[builder(setter(into), default)]
+    #[builder(setter(into, strip_option), default)]
     created_on: Option<Timestamp>,
 
-    #[builder(setter(into), default)]
+    #[builder(setter(into, strip_option), default)]
     created_by: Option<PersonId>,
 
     #[builder(setter(into))]

@@ -21,7 +21,7 @@ use rdkafka::{
     producer::FutureProducer,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use serde_json::{self as json, Value};
+use serde_json::{self as json};
 
 use crate::{
     CONFIG,

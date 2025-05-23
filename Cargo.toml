@@ -22,6 +22,8 @@ config = "0.15.11"
 secrecy = "0.10.3"
 rdkafka = "0.37.0"
 serde_with = "3.12.0"
+reqwest-retry = "0.7.0"
+reqwest-middleware = { version = "0.4.2", features = ["json"] }
 
 [dev-dependencies]
 anyhow = "1.0.98"

@@ -15,8 +15,8 @@
 
 use std::collections::HashMap;
 
-pub use reqwest::Client as HttpClient;
-use reqwest::{self, RequestBuilder, Response, Url};
+use reqwest::{self, Response, Url};
+use reqwest_middleware::{ClientWithMiddleware as HttpClient, RequestBuilder};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{self as json, Value};
 use tracing::{error, trace};

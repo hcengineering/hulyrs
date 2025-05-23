@@ -13,9 +13,14 @@
 // limitations under the License.
 //
 
-use std::sync::LazyLock;
+use std::{sync::LazyLock, time::Duration};
 
-use reqwest::Client as HttpClient;
+use reqwest::StatusCode;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use reqwest_retry::{
+    RetryTransientMiddleware, Retryable, RetryableStrategy, default_on_request_failure,
+    policies::ExponentialBackoff,
+};
 use secrecy::{ExposeSecret, SecretString};
 use url::Url;
 
@@ -25,6 +30,8 @@ pub mod document;
 pub mod event;
 pub mod person;
 
+pub type HttpClient = ClientWithMiddleware;
+
 pub struct TransactorClient {
     pub workspace: WorkspaceUuid,
     pub base: Url,
@@ -32,8 +39,43 @@ pub struct TransactorClient {
     http: HttpClient,
 }
 
-static CLIENT: LazyLock<HttpClient> =
-    LazyLock::new(|| reqwest::ClientBuilder::default().build().unwrap());
+static CLIENT: LazyLock<HttpClient> = LazyLock::new(|| {
+    let policy =
+        ExponentialBackoff::builder().build_with_total_retry_duration(Duration::from_secs(30));
+
+    struct TransactorStrategy;
+
+    impl RetryableStrategy for TransactorStrategy {
+        fn handle(
+            &self,
+            res: &std::result::Result<reqwest::Response, reqwest_middleware::Error>,
+        ) -> Option<Retryable> {
+            match res {
+                Ok(success) => match success.status() {
+                    StatusCode::REQUEST_TIMEOUT | StatusCode::TOO_MANY_REQUESTS => {
+                        Some(Retryable::Transient)
+                    }
+
+                    other => {
+                        if other.is_success() {
+                            None
+                        } else {
+                            Some(Retryable::Fatal)
+                        }
+                    }
+                },
+                Err(error) => default_on_request_failure(error),
+            }
+        }
+    }
+
+    ClientBuilder::new(reqwest::Client::new())
+        .with(RetryTransientMiddleware::new_with_policy_and_strategy(
+            policy,
+            TransactorStrategy,
+        ))
+        .build()
+});
 
 impl super::TokenProvider for &TransactorClient {
     fn provide_token(&self) -> Option<&str> {

@@ -13,12 +13,13 @@
 // limitations under the License.
 //
 
-use std::sync::LazyLock;
+use std::{sync::LazyLock, time::Duration};
 
 use super::{RequestBuilderExt, jwt::Claims};
 use crate::Result;
-use reqwest::Client as HttpClient;
-use reqwest::{Method, RequestBuilder, header};
+use reqwest::{Method, header};
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware as HttpClient, RequestBuilder};
+use reqwest_retry::{RetryTransientMiddleware, policies::ExponentialBackoff};
 use secrecy::{ExposeSecret, SecretString};
 use url::Url;
 
@@ -29,8 +30,14 @@ pub struct KvsClient {
     base: Url,
 }
 
-static CLIENT: LazyLock<HttpClient> =
-    LazyLock::new(|| reqwest::ClientBuilder::default().build().unwrap());
+static CLIENT: LazyLock<HttpClient> = LazyLock::new(|| {
+    let policy =
+        ExponentialBackoff::builder().build_with_total_retry_duration(Duration::from_secs(10));
+
+    ClientBuilder::new(reqwest::Client::new())
+        .with(RetryTransientMiddleware::new_with_policy(policy))
+        .build()
+});
 
 impl KvsClient {
     pub fn new(namespace: String, claims: Claims) -> Result<Self> {
