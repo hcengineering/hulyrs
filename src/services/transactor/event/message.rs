@@ -221,10 +221,40 @@ pub struct RemoveReactionEvent {
 }
 message_event!(RemoveReactionEvent, card);
 
+/*
+export interface FileData {
+    blobId: BlobID
+    type: string
+    filename: string
+    size: number
+    meta?: BlobMetadata
+  }
+  */
+
+#[derive(Serialize, Deserialize, Debug, Builder, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct FileData {
+    #[builder(setter(into))]
+    pub blob_id: BlobId,
+
+    #[builder(setter(into))]
+    #[serde(rename = "type")]
+    pub mime_type: String,
+
+    #[builder(setter(into))]
+    pub filename: String,
+
+    #[builder(setter(into), default)]
+    pub size: u32,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[builder(setter(into, strip_option), default)]
+    pub meta: Option<HashMap<String, String>>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Builder)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateFileEvent {
-    //  pub r#type: MessageRequestEventType,
     #[builder(setter(into))]
     pub card: CardId,
 
@@ -235,23 +265,9 @@ pub struct CreateFileEvent {
     pub message_created: Date,
 
     #[builder(setter(into))]
-    pub blob_id: BlobId,
-
-    #[builder(setter(into), default)]
-    pub size: u32,
-
-    #[builder(setter(into))]
-    pub file_type: String,
-
-    #[builder(setter(into))]
-    pub filename: String,
-
-    #[builder(setter(into))]
     pub creator: PersonId,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[builder(setter(into, strip_option), default)]
-    pub meta: Option<HashMap<String, String>>,
+    pub data: FileData,
 }
 message_event!(CreateFileEvent, card);
 
