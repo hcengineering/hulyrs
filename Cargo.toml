@@ -5,9 +5,14 @@ edition = "2024"
 
 [dependencies]
 strum = { version = "0.27.1", features = ["derive"] }
-actix-web = "4.10.2"
+actix-web = { version = "4.10.2", features = ["rustls"] }
 jsonwebtoken = "9.3.1"
-reqwest = { version = "0.12.15", features = ["json"] }
+reqwest = { version = "0.12.15", default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
+reqwest-middleware = { version = "0.4.2", features = ["json", "rustls-tls"] }
+reqwest-retry = { version = "0.7.0" }
 serde = "1.0.219"
 serde_json = "1.0.140"
 thiserror = "2.0.12"
@@ -20,10 +25,12 @@ bytes = "1.10.1"
 uuid = { version = "1.16.0", features = ["serde"] }
 config = "0.15.11"
 secrecy = "0.10.3"
-rdkafka = "0.37.0"
+rdkafka = { version = "0.37.0", features = [
+    "cmake-build",
+    "ssl-vendored",
+    "tracing",
+] }
 serde_with = "3.12.0"
-reqwest-retry = "0.7.0"
-reqwest-middleware = { version = "0.4.2", features = ["json"] }
 
 [dev-dependencies]
 anyhow = "1.0.98"
