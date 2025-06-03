@@ -13,6 +13,9 @@
 // limitations under the License.
 //
 
+use std::collections::HashMap;
+
+use derive_builder::Builder;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{self as json, Value};
 
@@ -207,16 +210,41 @@ pub trait Transaction {
     fn transaction(self) -> impl Serialize;
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, Builder)]
 #[serde(rename_all = "camelCase")]
 pub struct FindOptions {
+    #[builder(setter(strip_option), default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     limit: Option<u32>,
+
     // sort?: SortingQuery<T>
     // lookup?: Lookup<T>
     // projection?: Projection<T>
     // associations?: AssociationQuery[]
+    #[builder(setter(custom), default)]
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    projection: HashMap<String, u16>,
+
+    #[builder(default)]
     total: bool,
-    show_archived: Option<bool>,
+
+    #[builder(default)]
+    show_archived: bool,
+}
+
+impl FindOptionsBuilder {
+    pub fn project(&mut self, field: &str) -> &mut Self {
+        if self.projection.is_none() {
+            self.projection = Some(HashMap::new());
+        }
+
+        self.projection
+            .as_mut()
+            .unwrap()
+            .insert(field.to_owned(), 1);
+
+        self
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
