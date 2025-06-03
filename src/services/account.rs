@@ -117,6 +117,90 @@ pub struct Workspace {
     pub created_on: Option<Timestamp>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceInfo {
+    pub uuid: WorkspaceUuid,
+    pub data_id: Option<WorkspaceDataId>,
+    pub name: String,
+    pub url: String,
+    pub region: Option<String>,
+    pub branding: Option<String>,
+    #[serde(with = "chrono::serde::ts_milliseconds_option")]
+    pub created_on: Option<Timestamp>,
+    pub created_by: Option<PersonUuid>,
+    pub billing_account: Option<PersonUuid>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum WorkspaceMode {
+    ManualCreation,
+    PendingCreation,
+    Creating,
+    Upgrading,
+    PendingDeletion,
+    Deleting,
+    Active,
+    Deleted,
+    ArchingPendingBackup,
+    ArchivingBackup,
+    ArchivingPendingClean,
+    ArchivingClean,
+    Archived,
+    MigrationPendingBackup,
+    MigrationBackup,
+    MigrationPendingClean,
+    MigrationClean,
+    PendingRestore,
+    Restoring,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupStatus {
+    pub data_size: u32,
+    pub blobs_size: u32,
+    pub backup_size: u32,
+    #[serde(with = "chrono::serde::ts_milliseconds")]
+    pub last_backup: Timestamp,
+    pub backups: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceInfoWithStatus {
+    #[serde(flatten)]
+    pub workspace: WorkspaceInfo,
+    pub status: WorkspaceStatus,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceVersion {
+    pub version_major: i32,
+    pub version_minor: i32,
+    pub version_patch: i32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceStatus {
+    #[serde(flatten)]
+    pub version: WorkspaceVersion,
+    pub mode: WorkspaceMode,
+    pub processing_progress: Option<u32>,
+    #[serde(with = "chrono::serde::ts_milliseconds_option")]
+    pub last_processing_time: Option<Timestamp>,
+    #[serde(with = "chrono::serde::ts_milliseconds_option")]
+    pub last_visit: Option<Timestamp>,
+    pub is_disabled: bool,
+    pub processing_attempts: Option<u32>,
+    pub processing_message: Option<String>,
+    pub backup_info: Option<BackupStatus>,
+    pub target_region: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectWorkspaceParams {
@@ -156,6 +240,22 @@ pub struct EnsurePersonParams {
 pub struct EnsurePersonResult {
     pub uuid: PersonUuid,
     pub social_id: PersonId,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SignUpParams {
+    pub email: String,
+    pub password: String,
+    pub first_name: String,
+    pub last_name: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginParams {
+    pub email: String,
+    pub password: String,
 }
 
 #[derive(Clone)]
@@ -302,6 +402,14 @@ impl AccountClient {
         self.http.service(self, "deleteIntegration", params).await
     }
 
+    pub async fn sign_up(&self, params: &SignUpParams) -> Result<LoginInfo> {
+        self.http.service(self, "signUp", params).await
+    }
+
+    pub async fn login(&self, params: &LoginParams) -> Result<LoginInfo> {
+        self.http.service(self, "login", params).await
+    }
+
     pub async fn find_person_by_social_key(
         &self,
         key: &str,
@@ -324,7 +432,7 @@ impl AccountClient {
             .await
     }
 
-    pub async fn get_user_workspaces(&self) -> Result<Vec<Workspace>> {
+    pub async fn get_user_workspaces(&self) -> Result<Vec<WorkspaceInfoWithStatus>> {
         self.http.service(self, "getUserWorkspaces", ()).await
     }
 }
