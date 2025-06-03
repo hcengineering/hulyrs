@@ -117,6 +117,7 @@ pub struct CreateMessageEvent {
 }
 message_event!(CreateMessageEvent, card);
 
+/*
 #[derive(Serialize, Deserialize, Debug, Builder)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoveMessagesEvent {
@@ -127,11 +128,13 @@ pub struct RemoveMessagesEvent {
     pub messages: Vec<MessageId>,
 }
 message_event!(RemoveMessagesEvent, card);
+*/
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum PatchType {
     Update,
+    Remove,
     //AddReaction,
     //RemoveReaction,
     //AddReply,
@@ -140,10 +143,14 @@ pub enum PatchType {
     //RemoveFile,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Builder, Default)]
-pub struct PatchData {
-    content: Option<RichText>,
-    data: Option<MessageData>,
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum PatchData {
+    Update {
+        content: Option<RichText>,
+        data: Option<MessageData>,
+    },
+
+    Remove {},
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Builder)]
@@ -161,43 +168,13 @@ pub struct CreatePatchEvent {
     #[builder(setter(into))]
     pub message_created: Date,
 
-    #[builder(setter(custom))]
+    #[builder(setter(into))]
     pub data: PatchData,
 
     #[builder(setter(into))]
     pub creator: PersonId,
 }
-
-impl CreatePatchEventBuilder {
-    pub fn content(&mut self, content: RichText) -> &mut Self {
-        if self.data.is_none() {
-            self.data = Some(PatchData::default());
-        }
-
-        self.data.as_mut().unwrap().content = Some(content);
-        self
-    }
-
-    pub fn data(&mut self, data: MessageData) -> &mut Self {
-        if self.data.is_none() {
-            self.data = Some(PatchData::default());
-        }
-
-        self.data.as_mut().unwrap().data = Some(data);
-        self
-    }
-}
 message_event!(CreatePatchEvent, card);
-
-/*
-type: MessageRequestEventType.CreatePatch
-  patchType: PatchType
-  card: CardID
-  message: MessageID
-  messageCreated: Date
-  data: PatchData
-  creator: SocialID
-  */
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -220,16 +197,6 @@ pub struct RemoveReactionEvent {
     pub creator: PersonId,
 }
 message_event!(RemoveReactionEvent, card);
-
-/*
-export interface FileData {
-    blobId: BlobID
-    type: string
-    filename: string
-    size: number
-    meta?: BlobMetadata
-  }
-  */
 
 #[derive(Serialize, Deserialize, Debug, Builder, Clone)]
 #[serde(rename_all = "camelCase")]
