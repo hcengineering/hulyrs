@@ -200,6 +200,17 @@ impl AccountClient {
         })
     }
 
+    pub fn from_token(base: &str, account: Uuid, token: impl Into<SecretString>) -> Result<Self> {
+        let base = base.try_into()?;
+        let http = CLIENT.clone();
+        Ok(Self {
+            http,
+            base,
+            account,
+            token: token.into(),
+        })
+    }
+
     pub fn assume_claims(&self, claims: &Claims) -> Result<Self> {
         let account = claims.account;
         let base = self.base.clone();
@@ -212,6 +223,19 @@ impl AccountClient {
             account,
             token,
         })
+    }
+
+    pub fn assume_token(&self, token: impl AsRef<str>) -> Self {
+        let account = self.account;
+        let base = self.base.clone();
+        let http = self.http.clone();
+
+        Self {
+            http,
+            base,
+            account,
+            token: token.as_ref().into(),
+        }
     }
 
     pub async fn select_workspace(

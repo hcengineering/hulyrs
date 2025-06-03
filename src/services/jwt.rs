@@ -14,6 +14,7 @@
 //
 
 use jsonwebtoken as jwt;
+use jsonwebtoken::{DecodingKey, Validation};
 use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -54,6 +55,14 @@ impl Debug for Claims {
 }
 
 impl Claims {
+    pub fn from_token(
+        token: impl AsRef<str>,
+        secret: impl AsRef<[u8]>,
+    ) -> Result<Self, super::Error> {
+        let key = DecodingKey::from_secret(secret.as_ref());
+        Ok(jwt::decode(token.as_ref(), &key, &Validation::default())?.claims)
+    }
+
     pub fn account(&self) -> Uuid {
         self.account
     }

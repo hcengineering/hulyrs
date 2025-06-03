@@ -15,6 +15,10 @@
 
 use std::{sync::LazyLock, time::Duration};
 
+use crate::Result;
+use crate::services::ForceHttpScheme;
+use crate::services::jwt::Claims;
+use crate::services::types::WorkspaceUuid;
 use reqwest::StatusCode;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{
@@ -95,6 +99,21 @@ impl TransactorClient {
             workspace,
             token,
             base,
+        })
+    }
+
+    pub fn from_token(
+        base: Url,
+        workspace: WorkspaceUuid,
+        token: impl Into<SecretString>,
+    ) -> Result<Self> {
+        let base = base.force_http_scheme();
+        let http = CLIENT.clone();
+        Ok(Self {
+            workspace,
+            http,
+            base,
+            token: token.into(),
         })
     }
 }
