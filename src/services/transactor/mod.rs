@@ -28,19 +28,26 @@ use reqwest_retry::{
 use secrecy::{ExposeSecret, SecretString};
 use url::Url;
 
-use super::{ForceHttpScheme, Result, jwt::Claims, types::WorkspaceUuid};
-
 pub mod document;
 pub mod event;
 pub mod person;
 
 pub type HttpClient = ClientWithMiddleware;
 
+#[derive(Clone)]
 pub struct TransactorClient {
     pub workspace: WorkspaceUuid,
     pub base: Url,
     token: SecretString,
     http: HttpClient,
+}
+
+impl PartialEq for TransactorClient {
+    fn eq(&self, other: &Self) -> bool {
+        self.workspace == other.workspace
+            && self.token.expose_secret() == other.token.expose_secret()
+            && self.base == other.base
+    }
 }
 
 static CLIENT: LazyLock<HttpClient> = LazyLock::new(|| {

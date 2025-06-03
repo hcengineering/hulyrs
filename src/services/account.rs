@@ -90,7 +90,7 @@ pub enum WorkspaceKind {
     ByRegion,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Location {
     KV,
@@ -100,7 +100,7 @@ pub enum Location {
     ENAM,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Workspace {
     pub uuid: WorkspaceUuid,
@@ -158,11 +158,20 @@ pub struct EnsurePersonResult {
     pub social_id: PersonId,
 }
 
+#[derive(Clone)]
 pub struct AccountClient {
     pub account: AccountUuid,
     token: SecretString,
     base: Url,
     http: HttpClient,
+}
+
+impl PartialEq for AccountClient {
+    fn eq(&self, other: &Self) -> bool {
+        self.account == other.account
+            && self.token.expose_secret() == other.token.expose_secret()
+            && self.base == other.base
+    }
 }
 
 impl super::TokenProvider for &AccountClient {
