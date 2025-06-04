@@ -15,13 +15,14 @@
 
 use std::{sync::LazyLock, time::Duration};
 
-use reqwest::StatusCode;
+use reqwest::{StatusCode, header::HeaderValue};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{
     RetryTransientMiddleware, Retryable, RetryableStrategy, default_on_request_failure,
     policies::ExponentialBackoff,
 };
 use secrecy::{ExposeSecret, SecretString};
+use tracing::*;
 use url::Url;
 
 use super::{ForceHttpScheme, Result, jwt::Claims, types::WorkspaceUuid};
@@ -46,6 +47,7 @@ static CLIENT: LazyLock<HttpClient> = LazyLock::new(|| {
     struct TransactorStrategy;
 
     impl RetryableStrategy for TransactorStrategy {
+        #[tracing::instrument(level = "trace", skip_all)]
         fn handle(
             &self,
             res: &std::result::Result<reqwest::Response, reqwest_middleware::Error>,
@@ -53,6 +55,22 @@ static CLIENT: LazyLock<HttpClient> = LazyLock::new(|| {
             match res {
                 Ok(success) => match success.status() {
                     StatusCode::REQUEST_TIMEOUT | StatusCode::TOO_MANY_REQUESTS => {
+                        fn hstr(h: Option<&HeaderValue>) -> &str {
+                            h.map(|h| h.to_str().unwrap()).unwrap_or("")
+                        }
+
+                        let retry_after = hstr(success.headers().get("Retry-After"));
+
+                        let limit = hstr(success.headers().get("X-RateLimit-Limit"));
+                        let limit_remaining = hstr(success.headers().get("X-RateLimit-Remaining"));
+                        let limit_reset = hstr(success.headers().get("X-RateLimit-Reset"));
+
+                        trace!(
+                            code = %success.status(),
+                            retry_after, limit, limit_remaining, limit_reset,
+                            "Transient error"
+                        );
+
                         Some(Retryable::Transient)
                     }
 
