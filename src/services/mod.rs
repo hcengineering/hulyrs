@@ -19,7 +19,7 @@ use reqwest::{self, Response, Url};
 use reqwest_middleware::{ClientWithMiddleware as HttpClient, RequestBuilder};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{self as json, Value};
-use tracing::{error, trace};
+use tracing::*;
 
 pub mod account;
 pub mod chunter;
@@ -80,6 +80,21 @@ impl RequestBuilderExt for RequestBuilder {
     }
 }
 
+pub trait ResponseExt {
+    fn json_body<T: DeserializeOwned>(self) -> impl Future<Output = Result<T>>;
+}
+
+impl ResponseExt for reqwest::Response {
+    async fn json_body<T: DeserializeOwned>(self) -> Result<T> {
+        let body = self.text().await?;
+
+        serde_json::from_str::<T>(&body).map_err(|error| {
+            error!(%body, %error);
+            Error::Serde(error)
+        })
+    }
+}
+
 fn from_value<T: DeserializeOwned>(value: Value) -> Result<T> {
     json::from_value(value).map_err(|error| {
         error!(%error, "Cannot deserialize response");
@@ -93,6 +108,7 @@ trait JsonClient {
         user: U,
         url: Url,
     ) -> impl Future<Output = Result<R>>;
+
     fn post<U: TokenProvider, Q: Serialize, R: DeserializeOwned>(
         &self,
         user: U,
@@ -102,8 +118,13 @@ trait JsonClient {
 }
 
 impl JsonClient for HttpClient {
+    #[tracing::instrument(
+        level = "trace",
+        skip(self, user, url),
+        fields(%url, method = "get", type = "json")
+    )]
     async fn get<U: TokenProvider, R: DeserializeOwned>(&self, user: U, url: Url) -> Result<R> {
-        trace!(type="json", %url, method="get", "http request");
+        trace!("request");
 
         let mut request = self.get(url.clone());
 
@@ -111,11 +132,7 @@ impl JsonClient for HttpClient {
             request = request.bearer_auth(token);
         }
 
-        let response = request.send_ext().await?.json::<Value>().await?;
-
-        trace!(type="json", %url, method="get", %response, "http request");
-
-        Ok(from_value(response)?)
+        request.send_ext().await?.json_body::<R>().await
     }
 
     async fn post<U: TokenProvider, Q: Serialize, R: DeserializeOwned>(
