@@ -22,6 +22,8 @@ use serde_json::{self as json, Value};
 use tracing::*;
 
 pub mod account;
+pub mod chunter;
+pub mod core;
 pub mod jwt;
 pub mod kvs;
 pub mod transactor;

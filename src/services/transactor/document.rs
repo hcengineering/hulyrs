@@ -24,13 +24,13 @@ use crate::services::{
     types::{Account, PersonId, Ref, Timestamp},
 };
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Obj {
     #[serde(rename = "_class")]
     pub class: Ref,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Doc {
     #[serde(flatten)]

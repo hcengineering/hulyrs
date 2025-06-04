@@ -15,6 +15,10 @@
 
 use std::{sync::LazyLock, time::Duration};
 
+use crate::Result;
+use crate::services::ForceHttpScheme;
+use crate::services::jwt::Claims;
+use crate::services::types::WorkspaceUuid;
 use reqwest::{StatusCode, header::HeaderValue};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{
@@ -25,19 +29,26 @@ use secrecy::{ExposeSecret, SecretString};
 use tracing::*;
 use url::Url;
 
-use super::{ForceHttpScheme, Result, jwt::Claims, types::WorkspaceUuid};
-
 pub mod document;
 pub mod event;
 pub mod person;
 
 pub type HttpClient = ClientWithMiddleware;
 
+#[derive(Clone)]
 pub struct TransactorClient {
     pub workspace: WorkspaceUuid,
     pub base: Url,
     token: SecretString,
     http: HttpClient,
+}
+
+impl PartialEq for TransactorClient {
+    fn eq(&self, other: &Self) -> bool {
+        self.workspace == other.workspace
+            && self.token.expose_secret() == other.token.expose_secret()
+            && self.base == other.base
+    }
 }
 
 static CLIENT: LazyLock<HttpClient> = LazyLock::new(|| {
@@ -113,6 +124,21 @@ impl TransactorClient {
             workspace,
             token,
             base,
+        })
+    }
+
+    pub fn from_token(
+        base: Url,
+        workspace: WorkspaceUuid,
+        token: impl Into<SecretString>,
+    ) -> Result<Self> {
+        let base = base.force_http_scheme();
+        let http = CLIENT.clone();
+        Ok(Self {
+            workspace,
+            http,
+            base,
+            token: token.into(),
         })
     }
 }

@@ -13,20 +13,10 @@
 // limitations under the License.
 //
 
-use std::time::Duration;
-
-use rdkafka::{
-    ClientConfig,
-    message::{Header, OwnedHeaders},
-    producer::FutureProducer,
-};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use serde_json::{self as json};
+use serde_json as json;
 
-use crate::{
-    CONFIG,
-    services::{HttpClient, JsonClient, Result, types::WorkspaceUuid},
-};
+use crate::services::{HttpClient, JsonClient, Result};
 
 mod message;
 pub use message::*;
@@ -124,46 +114,59 @@ impl EventClient for super::TransactorClient {
     }
 }
 
-pub struct KafkaEventPublisher {
-    producer: FutureProducer,
-    topic: String,
-}
+#[cfg(feature = "kafka")]
+pub mod kafka {
+    use super::*;
+    use crate::services::types::WorkspaceUuid;
+    use rdkafka::{
+        ClientConfig,
+        message::{Header, OwnedHeaders},
+        producer::FutureProducer,
+    };
+    use serde_json as json;
+    use std::time::Duration;
 
-impl KafkaEventPublisher {
-    pub fn new(topic: &str) -> Result<Self> {
-        let producer = ClientConfig::new()
-            .set("bootstrap.servers", CONFIG.kafka_bootstrap_servers())
-            .set("message.timeout.ms", "5000")
-            .create()?;
-
-        Ok(Self {
-            producer,
-            topic: topic.to_owned(),
-        })
+    pub struct KafkaEventPublisher {
+        producer: FutureProducer,
+        topic: String,
     }
 
-    pub async fn request<T: Serialize + PartitionKeyProvider>(
-        &self,
-        workspace: WorkspaceUuid,
-        r#type: MessageRequestType,
-        event: T,
-    ) -> Result<()> {
-        let envelope = Envelope::new(r#type, event);
-        let payload = json::to_vec(&envelope)?;
+    impl KafkaEventPublisher {
+        pub fn new(topic: &str, bootstrap_servers: Vec<String>) -> Result<Self> {
+            let producer = ClientConfig::new()
+                .set("bootstrap.servers", bootstrap_servers.join(","))
+                .set("message.timeout.ms", "5000")
+                .create()?;
 
-        let message = rdkafka::producer::FutureRecord::to(&self.topic)
-            .payload(&payload)
-            .headers(OwnedHeaders::new().insert(Header {
-                key: "WorkspaceUuid",
-                value: Some(&workspace.to_string()),
-            }))
-            .key(envelope.request.partition_key());
+            Ok(Self {
+                producer,
+                topic: topic.to_owned(),
+            })
+        }
 
-        self.producer
-            .send(message, Duration::from_secs(10))
-            .await
-            .map_err(|e| e.0)?;
+        pub async fn request<T: Serialize + PartitionKeyProvider>(
+            &self,
+            workspace: WorkspaceUuid,
+            r#type: MessageRequestType,
+            event: T,
+        ) -> Result<()> {
+            let envelope = Envelope::new(r#type, event);
+            let payload = json::to_vec(&envelope)?;
 
-        Ok(())
+            let message = rdkafka::producer::FutureRecord::to(&self.topic)
+                .payload(&payload)
+                .headers(OwnedHeaders::new().insert(Header {
+                    key: "WorkspaceUuid",
+                    value: Some(&workspace.to_string()),
+                }))
+                .key(envelope.request.partition_key());
+
+            self.producer
+                .send(message, Duration::from_secs(10))
+                .await
+                .map_err(|e| e.0)?;
+
+            Ok(())
+        }
     }
 }

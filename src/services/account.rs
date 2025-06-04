@@ -90,7 +90,7 @@ pub enum WorkspaceKind {
     ByRegion,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Location {
     KV,
@@ -100,7 +100,7 @@ pub enum Location {
     ENAM,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Workspace {
     pub uuid: WorkspaceUuid,
@@ -115,6 +115,90 @@ pub struct Workspace {
 
     #[serde(with = "chrono::serde::ts_milliseconds_option")]
     pub created_on: Option<Timestamp>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceInfo {
+    pub uuid: WorkspaceUuid,
+    pub data_id: Option<WorkspaceDataId>,
+    pub name: String,
+    pub url: String,
+    pub region: Option<String>,
+    pub branding: Option<String>,
+    #[serde(with = "chrono::serde::ts_milliseconds_option")]
+    pub created_on: Option<Timestamp>,
+    pub created_by: Option<PersonUuid>,
+    pub billing_account: Option<PersonUuid>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum WorkspaceMode {
+    ManualCreation,
+    PendingCreation,
+    Creating,
+    Upgrading,
+    PendingDeletion,
+    Deleting,
+    Active,
+    Deleted,
+    ArchingPendingBackup,
+    ArchivingBackup,
+    ArchivingPendingClean,
+    ArchivingClean,
+    Archived,
+    MigrationPendingBackup,
+    MigrationBackup,
+    MigrationPendingClean,
+    MigrationClean,
+    PendingRestore,
+    Restoring,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupStatus {
+    pub data_size: u32,
+    pub blobs_size: u32,
+    pub backup_size: u32,
+    #[serde(with = "chrono::serde::ts_milliseconds")]
+    pub last_backup: Timestamp,
+    pub backups: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceInfoWithStatus {
+    #[serde(flatten)]
+    pub workspace: WorkspaceInfo,
+    pub status: WorkspaceStatus,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceVersion {
+    pub version_major: i32,
+    pub version_minor: i32,
+    pub version_patch: i32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceStatus {
+    #[serde(flatten)]
+    pub version: WorkspaceVersion,
+    pub mode: WorkspaceMode,
+    pub processing_progress: Option<u32>,
+    #[serde(with = "chrono::serde::ts_milliseconds_option")]
+    pub last_processing_time: Option<Timestamp>,
+    #[serde(with = "chrono::serde::ts_milliseconds_option")]
+    pub last_visit: Option<Timestamp>,
+    pub is_disabled: bool,
+    pub processing_attempts: Option<u32>,
+    pub processing_message: Option<String>,
+    pub backup_info: Option<BackupStatus>,
+    pub target_region: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -158,11 +242,36 @@ pub struct EnsurePersonResult {
     pub social_id: PersonId,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SignUpParams {
+    pub email: String,
+    pub password: String,
+    pub first_name: String,
+    pub last_name: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginParams {
+    pub email: String,
+    pub password: String,
+}
+
+#[derive(Clone)]
 pub struct AccountClient {
     pub account: AccountUuid,
     token: SecretString,
     base: Url,
     http: HttpClient,
+}
+
+impl PartialEq for AccountClient {
+    fn eq(&self, other: &Self) -> bool {
+        self.account == other.account
+            && self.token.expose_secret() == other.token.expose_secret()
+            && self.base == other.base
+    }
 }
 
 impl super::TokenProvider for &AccountClient {
@@ -186,9 +295,9 @@ static CLIENT: LazyLock<HttpClient> = LazyLock::new(|| {
 });
 
 impl AccountClient {
-    pub fn new(claims: &Claims) -> Result<Self> {
+    pub fn new(base: &str, claims: &Claims) -> Result<Self> {
         let account = claims.account;
-        let base = crate::CONFIG.account_service.clone();
+        let base = base.try_into()?;
         let http = CLIENT.clone();
         let token = claims.encode()?;
 
@@ -197,6 +306,17 @@ impl AccountClient {
             base,
             account,
             token,
+        })
+    }
+
+    pub fn from_token(base: &str, account: Uuid, token: impl Into<SecretString>) -> Result<Self> {
+        let base = base.try_into()?;
+        let http = CLIENT.clone();
+        Ok(Self {
+            http,
+            base,
+            account,
+            token: token.into(),
         })
     }
 
@@ -212,6 +332,19 @@ impl AccountClient {
             account,
             token,
         })
+    }
+
+    pub fn assume_token(&self, token: impl AsRef<str>) -> Self {
+        let account = self.account;
+        let base = self.base.clone();
+        let http = self.http.clone();
+
+        Self {
+            http,
+            base,
+            account,
+            token: token.as_ref().into(),
+        }
     }
 
     pub async fn select_workspace(
@@ -269,6 +402,14 @@ impl AccountClient {
         self.http.service(self, "deleteIntegration", params).await
     }
 
+    pub async fn sign_up(&self, params: &SignUpParams) -> Result<LoginInfo> {
+        self.http.service(self, "signUp", params).await
+    }
+
+    pub async fn login(&self, params: &LoginParams) -> Result<LoginInfo> {
+        self.http.service(self, "login", params).await
+    }
+
     pub async fn find_person_by_social_key(
         &self,
         key: &str,
@@ -291,7 +432,7 @@ impl AccountClient {
             .await
     }
 
-    pub async fn get_user_workspaces(&self) -> Result<Vec<Workspace>> {
+    pub async fn get_user_workspaces(&self) -> Result<Vec<WorkspaceInfoWithStatus>> {
         self.http.service(self, "getUserWorkspaces", ()).await
     }
 }
