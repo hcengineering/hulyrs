@@ -13,15 +13,14 @@
 // limitations under the License.
 //
 
-use std::{sync::LazyLock, time::Duration};
-
-use super::{RequestBuilderExt, jwt::Claims};
-use crate::Result;
 use reqwest::{Method, header};
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware as HttpClient, RequestBuilder};
-use reqwest_retry::{RetryTransientMiddleware, policies::ExponentialBackoff};
+use reqwest_middleware::RequestBuilder;
 use secrecy::{ExposeSecret, SecretString};
 use url::Url;
+
+use super::jwt::Claims;
+use crate::services::{HttpClient, RequestBuilderExt};
+use crate::{Error, Result, config::Config};
 
 pub struct KvsClient {
     token: SecretString,
@@ -30,24 +29,19 @@ pub struct KvsClient {
     base: Url,
 }
 
-static CLIENT: LazyLock<HttpClient> = LazyLock::new(|| {
-    let policy =
-        ExponentialBackoff::builder().build_with_total_retry_duration(Duration::from_secs(10));
-
-    ClientBuilder::new(reqwest::Client::new())
-        .with(RetryTransientMiddleware::new_with_policy(policy))
-        .build()
-});
-
 impl KvsClient {
-    pub fn new(base: &str, namespace: String, claims: Claims) -> Result<Self> {
-        let base = base.try_into()?;
-        let http = CLIENT.clone();
-        let token = claims.encode()?;
+    pub fn new(
+        config: &Config,
+        http: HttpClient,
+        namespace: String,
+        claims: &Claims,
+    ) -> Result<Self> {
+        let base = config.kvs_service.clone();
+        let token = claims.encode(config.token_secret.as_ref().unwrap())?;
 
         Ok(Self {
             http,
-            base,
+            base: base.ok_or(Error::Other("NoKVS"))?,
             namespace,
             token,
         })
@@ -90,7 +84,7 @@ impl KvsClient {
             match response.status() {
                 reqwest::StatusCode::NOT_FOUND => Ok(None),
 
-                _ => Err(super::Error::HttpError(
+                _ => Err(crate::Error::HttpError(
                     response.status(),
                     response.text().await?,
                 )),

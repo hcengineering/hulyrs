@@ -15,8 +15,11 @@
 
 pub use reqwest::StatusCode;
 
-pub mod config;
+mod config;
 pub mod services;
+
+pub use config::{Config, ConfigBuilder, ConfigBuilderError};
+pub use services::ServiceFactory;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -44,6 +47,9 @@ pub enum Error {
 
     #[error(transparent)]
     Jwt(#[from] jsonwebtoken::errors::Error),
+
+    #[error(transparent)]
+    Config(#[from] ::config::ConfigError),
 
     #[error("{0}")]
     Other(&'static str),

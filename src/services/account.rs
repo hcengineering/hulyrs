@@ -13,17 +13,18 @@
 // limitations under the License.
 //
 
-use std::sync::LazyLock;
-
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware as HttpClient};
-use reqwest_retry::{RetryTransientMiddleware, policies::ExponentialBackoff};
+use reqwest_middleware::ClientWithMiddleware as HttpClient;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use url::Url;
 use uuid::Uuid;
 
-use super::{Result, ServiceClient, jwt::Claims, types::*};
+use crate::config::Config;
+use crate::{
+    Error, Result,
+    services::{ServiceClient, jwt::Claims, types::*},
+};
 
 #[derive(serde::Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -286,45 +287,28 @@ impl super::BasePathProvider for &AccountClient {
     }
 }
 
-static CLIENT: LazyLock<HttpClient> = LazyLock::new(|| {
-    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
-
-    ClientBuilder::new(reqwest::Client::new())
-        .with(RetryTransientMiddleware::new_with_policy(retry_policy))
-        .build()
-});
-
 impl AccountClient {
-    pub fn new(base: &str, claims: &Claims) -> Result<Self> {
-        let account = claims.account;
-        let base = base.try_into()?;
-        let http = CLIENT.clone();
-        let token = claims.encode()?;
-
+    pub fn new(
+        config: &Config,
+        http: HttpClient,
+        account: AccountUuid,
+        token: impl Into<SecretString>,
+    ) -> Result<Self> {
+        let base = config.account_service.clone();
         Ok(Self {
             http,
-            base,
-            account,
-            token,
-        })
-    }
-
-    pub fn from_token(base: &str, account: Uuid, token: impl Into<SecretString>) -> Result<Self> {
-        let base = base.try_into()?;
-        let http = CLIENT.clone();
-        Ok(Self {
-            http,
-            base,
+            base: base.ok_or(Error::Other("NoAccountService"))?,
             account,
             token: token.into(),
         })
     }
 
-    pub fn assume_claims(&self, claims: &Claims) -> Result<Self> {
+    #[deprecated(note = "use ServiceFactory")]
+    pub fn assume_claims(&self, claims: &Claims, secret: &SecretString) -> Result<Self> {
         let account = claims.account;
         let base = self.base.clone();
         let http = self.http.clone();
-        let token = claims.encode()?;
+        let token = claims.encode(secret)?;
 
         Ok(Self {
             http,
@@ -334,6 +318,7 @@ impl AccountClient {
         })
     }
 
+    #[deprecated(note = "use ServiceFactory")]
     pub fn assume_token(&self, token: impl AsRef<str>) -> Self {
         let account = self.account;
         let base = self.base.clone();

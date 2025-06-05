@@ -15,9 +15,12 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::services::{
-    HttpClient, JsonClient, Result,
-    types::{PersonId, PersonUuid, SocialIdType},
+use crate::{
+    Result,
+    services::{
+        HttpClient, JsonClient,
+        types::{PersonId, PersonUuid, SocialIdType},
+    },
 };
 
 #[derive(Serialize, Debug, derive_builder::Builder)]

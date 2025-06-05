@@ -15,7 +15,7 @@
 
 use jsonwebtoken as jwt;
 use jsonwebtoken::{DecodingKey, Validation};
-use secrecy::SecretString;
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::{collections::HashMap, sync::LazyLock};
@@ -30,10 +30,6 @@ static GUEST_UUID: LazyLock<Uuid> =
 pub struct Claims {
     #[builder(setter(into))]
     pub account: Uuid,
-
-    #[serde(skip)]
-    #[builder(setter(into), default)]
-    encoding_key: String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(setter(into, strip_option), default)]
@@ -58,7 +54,7 @@ impl Claims {
     pub fn from_token(
         token: impl AsRef<str>,
         secret: impl AsRef<[u8]>,
-    ) -> Result<Self, super::Error> {
+    ) -> Result<Self, crate::Error> {
         let key = DecodingKey::from_secret(secret.as_ref());
         Ok(jwt::decode(token.as_ref(), &key, &Validation::default())?.claims)
     }
@@ -67,18 +63,14 @@ impl Claims {
         self.account
     }
 
-    pub fn workspace(&self) -> Result<Uuid, super::Error> {
+    pub fn workspace(&self) -> Result<Uuid, crate::Error> {
         self.workspace
-            .ok_or_else(|| super::Error::Other("No workspace in claims"))
+            .ok_or_else(|| crate::Error::Other("No workspace in claims"))
     }
 
-    pub fn encode(&self) -> Result<SecretString, super::Error> {
-        self.encode_ext(&self.encoding_key)
-    }
-
-    pub fn encode_ext(&self, secret: impl AsRef<[u8]>) -> Result<SecretString, super::Error> {
+    pub fn encode(&self, secret: &SecretString) -> Result<SecretString, crate::Error> {
         let header = jwt::Header::default();
-        let key = jwt::EncodingKey::from_secret(secret.as_ref());
+        let key = jwt::EncodingKey::from_secret(secret.expose_secret().as_bytes());
 
         Ok(jwt::encode(&header, self, &key)?.into())
     }
@@ -132,12 +124,13 @@ impl ClaimsBuilder {
 #[cfg(feature = "actix")]
 pub mod actix {
     use actix_web::{dev::ServiceRequest, error};
+    use secrecy::{ExposeSecret, SecretString};
 
     use super::Claims;
 
     pub trait ServiceRequestExt {
         fn extract_token_raw(&self) -> Result<&str, actix_web::Error>;
-        fn extract_claims(&self, secret: &[u8]) -> Result<Claims, actix_web::Error>;
+        fn extract_claims(&self, secret: &SecretString) -> Result<Claims, actix_web::Error>;
     }
 
     impl ServiceRequestExt for ServiceRequest {
@@ -149,13 +142,13 @@ pub mod actix {
                 .ok_or_else(|| error::ErrorUnauthorized("NoAuthToken"))
         }
 
-        fn extract_claims(&self, secret: &[u8]) -> Result<Claims, actix_web::Error> {
+        fn extract_claims(&self, secret: &SecretString) -> Result<Claims, actix_web::Error> {
             use super::jwt::{Algorithm, DecodingKey, Validation, decode};
             use std::collections::HashSet;
 
             let token = self.extract_token_raw()?;
 
-            let key = DecodingKey::from_secret(secret);
+            let key = DecodingKey::from_secret(secret.expose_secret().as_bytes());
             let mut validation = Validation::new(Algorithm::HS256);
             validation.required_spec_claims = HashSet::new();
 

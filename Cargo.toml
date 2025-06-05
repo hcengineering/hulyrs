@@ -23,7 +23,7 @@ ksuid = "0.2.0"
 bytes = "1.10.1"
 uuid = { version = "1.16.0", features = ["serde"] }
 config = "0.15.11"
-secrecy = "0.10.3"
+secrecy = { version = "0.10.3", features = ["serde"] }
 serde_with = "3.12.0"
 
 actix-web = { version = "4.10.2", optional = true, features = ["rustls"] }

@@ -19,9 +19,12 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{self as json, Value};
 
-use crate::services::{
-    Error, HttpClient, JsonClient, Result,
-    types::{Account, PersonId, Ref, Timestamp},
+use crate::{
+    Error, Result,
+    services::{
+        HttpClient, JsonClient,
+        types::{Account, PersonId, Ref, Timestamp},
+    },
 };
 
 #[derive(Deserialize, Serialize, Debug, Clone)]

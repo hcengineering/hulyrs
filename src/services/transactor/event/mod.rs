@@ -16,7 +16,10 @@
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json as json;
 
-use crate::services::{HttpClient, JsonClient, Result};
+use crate::{
+    Result,
+    services::{HttpClient, JsonClient},
+};
 
 mod message;
 pub use message::*;
@@ -117,7 +120,7 @@ impl EventClient for super::TransactorClient {
 #[cfg(feature = "kafka")]
 pub mod kafka {
     use super::*;
-    use crate::services::types::WorkspaceUuid;
+    use crate::{Config, services::types::WorkspaceUuid};
     use rdkafka::{
         ClientConfig,
         message::{Header, OwnedHeaders},
@@ -132,9 +135,12 @@ pub mod kafka {
     }
 
     impl KafkaEventPublisher {
-        pub fn new(topic: &str, bootstrap_servers: Vec<String>) -> Result<Self> {
+        pub fn new(config: &Config, topic: &str) -> Result<Self> {
             let producer = ClientConfig::new()
-                .set("bootstrap.servers", bootstrap_servers.join(","))
+                .set(
+                    "bootstrap.servers",
+                    config.kafka_bootstrap_servers.join(","),
+                )
                 .set("message.timeout.ms", "5000")
                 .create()?;
 
