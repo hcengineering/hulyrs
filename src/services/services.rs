@@ -258,6 +258,7 @@ impl ServiceClient for HttpClient {
     }
 }
 
+#[derive(Clone)]
 pub struct ServiceFactory {
     config: Config,
     account_http: HttpClient,
