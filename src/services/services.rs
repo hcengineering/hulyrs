@@ -425,4 +425,8 @@ impl ServiceFactory {
     pub fn new_kafka_event_publisher(&self, topic: &str) -> Result<KafkaEventPublisher> {
         KafkaEventPublisher::new(&self.config, topic)
     }
+    
+    pub fn config(&self) -> &Config {
+        &self.config
+    }
 }
