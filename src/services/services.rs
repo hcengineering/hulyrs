@@ -267,6 +267,7 @@ pub struct ServiceFactory {
 
 impl ServiceFactory {
     pub fn new(config: Config) -> Self {
+        #[cfg(feature = "retry")]
         let account_http = {
             let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
 
@@ -275,6 +276,12 @@ impl ServiceFactory {
                 .build()
         };
 
+        #[cfg(not(feature = "retry"))]
+        let account_http = {
+            ClientBuilder::new(reqwest::Client::new()).build()
+        };
+
+        #[cfg(feature = "retry")]
         let kvs_http = {
             let policy = ExponentialBackoff::builder()
                 .build_with_total_retry_duration(Duration::from_secs(10));
@@ -284,6 +291,12 @@ impl ServiceFactory {
                 .build()
         };
 
+        #[cfg(not(feature = "retry"))]
+        let kvs_http = {
+            ClientBuilder::new(reqwest::Client::new()).build()
+        };
+
+        #[cfg(feature = "retry")]
         let transactor_http = {
             let policy = ExponentialBackoff::builder()
                 .build_with_total_retry_duration(Duration::from_secs(30));
@@ -338,6 +351,11 @@ impl ServiceFactory {
             ClientBuilder::new(reqwest::Client::new())
                 .with(retry)
                 .build()
+        };
+
+        #[cfg(not(feature = "retry"))]
+        let transactor_http = {
+            ClientBuilder::new(reqwest::Client::new()).build()
         };
 
         Self {
