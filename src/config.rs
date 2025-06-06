@@ -14,7 +14,7 @@
 //
 
 use derive_builder::Builder;
-use secrecy::SecretString;
+use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use serde_with::{DisplayFromStr, StringWithSeparator, formats::CommaSeparator, serde_as};
 use url::Url;
@@ -37,11 +37,13 @@ pub struct Config {
     #[builder(setter(strip_option, into), default = "tracing::Level::INFO")]
     pub log: tracing::Level,
 
+    #[cfg(feature = "kafka")]
     #[serde(rename = "kafka_bootstrap")]
     #[serde_as(as = "StringWithSeparator::<CommaSeparator, String>")]
     #[builder(default)]
     pub kafka_bootstrap_servers: Vec<String>,
 
+    #[cfg(feature = "kafka")]
     #[serde(default, rename = "rdkafka_debug")]
     #[builder(setter(strip_option, into), default)]
     pub kafka_rdkafka_debug: Option<String>,
@@ -51,7 +53,25 @@ pub struct Config {
     pub external_regions: Vec<String>,
 }
 
+impl PartialEq for Config {
+    fn eq(&self, other: &Self) -> bool {
+        #[cfg(feature = "kafka")]
+        let kafka_eq = self.kafka_bootstrap_servers == other.kafka_bootstrap_servers && self.kafka_rdkafka_debug == other.kafka_rdkafka_debug;
+        #[cfg(not(feature = "kafka"))]
+        let kafka_eq = true;
+        
+        self.token_secret.as_ref().map(SecretString::expose_secret)
+            == other.token_secret.as_ref().map(SecretString::expose_secret)
+            && self.account_service == other.account_service
+            && self.kvs_service == other.kvs_service
+        && self.log == other.log
+            && kafka_eq
+        && self.external_regions == other.external_regions
+    }
+}
+
 impl Config {
+    #[cfg(feature = "kafka")]
     pub fn kafka_bootstrap_servers(&self) -> String {
         self.kafka_bootstrap_servers.join(",")
     }
