@@ -268,7 +268,7 @@ pub struct ServiceFactory {
 
 impl ServiceFactory {
     pub fn new(config: Config) -> Self {
-        #[cfg(feature = "retry")]
+        #[cfg(feature = "reqwest_middleware")]
         let account_http = {
             let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
 
@@ -277,12 +277,10 @@ impl ServiceFactory {
                 .build()
         };
 
-        #[cfg(not(feature = "retry"))]
-        let account_http = {
-            ClientBuilder::new(reqwest::Client::new()).build()
-        };
+        #[cfg(not(feature = "reqwest_middleware"))]
+        let account_http = { ClientBuilder::new(reqwest::Client::new()).build() };
 
-        #[cfg(feature = "retry")]
+        #[cfg(feature = "reqwest_middleware")]
         let kvs_http = {
             let policy = ExponentialBackoff::builder()
                 .build_with_total_retry_duration(Duration::from_secs(10));
@@ -292,20 +290,18 @@ impl ServiceFactory {
                 .build()
         };
 
-        #[cfg(not(feature = "retry"))]
-        let kvs_http = {
-            ClientBuilder::new(reqwest::Client::new()).build()
-        };
+        #[cfg(not(feature = "reqwest_middleware"))]
+        let kvs_http = { ClientBuilder::new(reqwest::Client::new()).build() };
 
-        #[cfg(feature = "retry")]
+        #[cfg(feature = "reqwest_middleware")]
         let transactor_http = {
             let policy = ExponentialBackoff::builder()
-                .build_with_total_retry_duration(Duration::from_secs(30));
+                .build_with_total_retry_duration(Duration::from_secs(120));
 
             struct TransactorStrategy;
 
             impl RetryableStrategy for TransactorStrategy {
-                #[tracing::instrument(level = "trace", skip_all)]
+                #[tracing::instrument(level = "debug", skip_all)]
                 fn handle(
                     &self,
                     res: &std::result::Result<reqwest::Response, reqwest_middleware::Error>,
@@ -324,7 +320,7 @@ impl ServiceFactory {
                                     hstr(success.headers().get("X-RateLimit-Remaining"));
                                 let limit_reset = hstr(success.headers().get("X-RateLimit-Reset"));
 
-                                trace!(
+                                warn!(
                                     code = %success.status(),
                                     retry_after, limit, limit_remaining, limit_reset,
                                     "Transient error"
@@ -349,15 +345,55 @@ impl ServiceFactory {
             let retry =
                 RetryTransientMiddleware::new_with_policy_and_strategy(policy, TransactorStrategy);
 
+            let retry_after = reqwest_retry_after::RetryAfterMiddleware::new();
+
+            let rate_limiter = {
+                use governor::{
+                    Quota, RateLimiter,
+                    clock::{Clock, MonotonicClock},
+                    middleware::NoOpMiddleware,
+                    state::{InMemoryState, NotKeyed},
+                };
+                use std::num::NonZeroU32;
+
+                pub type DirectRateLimiter = RateLimiter<
+                    NotKeyed,
+                    InMemoryState,
+                    MonotonicClock,
+                    NoOpMiddleware<<MonotonicClock as Clock>::Instant>,
+                >;
+
+                struct Limiter(DirectRateLimiter);
+
+                impl Limiter {
+                    fn new(limit: NonZeroU32) -> Self {
+                        let limiter = RateLimiter::direct_with_clock(
+                            Quota::per_minute(limit).allow_burst(1.try_into().unwrap()),
+                            MonotonicClock,
+                        );
+
+                        Self(limiter)
+                    }
+                }
+
+                impl reqwest_ratelimit::RateLimiter for Limiter {
+                    async fn acquire_permit(&self) {
+                        self.0.until_ready().await;
+                    }
+                }
+
+                reqwest_ratelimit::all(Limiter::new(config.account_service_rate_limit))
+            };
+
             ClientBuilder::new(reqwest::Client::new())
+                //.with(retry_after)
                 .with(retry)
+                .with(rate_limiter)
                 .build()
         };
 
-        #[cfg(not(feature = "retry"))]
-        let transactor_http = {
-            ClientBuilder::new(reqwest::Client::new()).build()
-        };
+        #[cfg(not(feature = "reqwest_middleware"))]
+        let transactor_http = { ClientBuilder::new(reqwest::Client::new()).build() };
 
         Self {
             config,
@@ -425,7 +461,7 @@ impl ServiceFactory {
     pub fn new_kafka_event_publisher(&self, topic: &str) -> Result<KafkaEventPublisher> {
         KafkaEventPublisher::new(&self.config, topic)
     }
-    
+
     pub fn config(&self) -> &Config {
         &self.config
     }

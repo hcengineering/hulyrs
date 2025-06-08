@@ -13,6 +13,8 @@
 // limitations under the License.
 //
 
+use std::num::NonZeroU32;
+
 use derive_builder::Builder;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -29,6 +31,10 @@ pub struct Config {
 
     #[builder(setter(strip_option, into), default)]
     pub account_service: Option<Url>,
+
+    #[cfg(feature = "reqwest_middleware")]
+    #[builder(default = "NonZeroU32::try_from(250).unwrap()")]
+    pub account_service_rate_limit: NonZeroU32,
 
     #[builder(setter(strip_option, into), default)]
     pub kvs_service: Option<Url>,
@@ -56,17 +62,25 @@ pub struct Config {
 impl PartialEq for Config {
     fn eq(&self, other: &Self) -> bool {
         #[cfg(feature = "kafka")]
-        let kafka_eq = self.kafka_bootstrap_servers == other.kafka_bootstrap_servers && self.kafka_rdkafka_debug == other.kafka_rdkafka_debug;
+        let kafka_eq = self.kafka_bootstrap_servers == other.kafka_bootstrap_servers
+            && self.kafka_rdkafka_debug == other.kafka_rdkafka_debug;
         #[cfg(not(feature = "kafka"))]
         let kafka_eq = true;
-        
+
+        #[cfg(feature = "reqwest_middleware")]
+        let rate_limit_eq = self.account_service_rate_limit == other.account_service_rate_limit;
+
+        #[cfg(not(feature = "reqwest_middleware"))]
+        let rate_limit_eq = true;
+
         self.token_secret.as_ref().map(SecretString::expose_secret)
             == other.token_secret.as_ref().map(SecretString::expose_secret)
             && self.account_service == other.account_service
             && self.kvs_service == other.kvs_service
-        && self.log == other.log
+            && self.log == other.log
             && kafka_eq
-        && self.external_regions == other.external_regions
+            && rate_limit_eq
+            && self.external_regions == other.external_regions
     }
 }
 
@@ -80,6 +94,7 @@ impl Config {
         const DEFAULTS: &str = r#"
         token_secret = "secret"
         account_service = "http://localhost:8080/account"
+        account_service_rate_limit = 100
         kvs_service = "http://localhost:8094"
         kafka_bootstrap = "localhost:19092"
         log = "INFO"
