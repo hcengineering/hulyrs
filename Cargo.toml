@@ -12,6 +12,9 @@ reqwest = { version = "0.12.15", default-features = false, features = [
 ] }
 reqwest-middleware = { version = "0.4.2", features = ["json", "rustls-tls"] }
 reqwest-retry = { version = "0.7.0" }
+reqwest-retry-after = "0.2.0"
+reqwest-ratelimit = "0.4.1"
+governor = { version = "0.10.0", features = ["std"] }
 serde = "1.0.219"
 serde_json = "1.0.140"
 thiserror = "2.0.12"
@@ -25,7 +28,6 @@ uuid = { version = "1.16.0", features = ["serde"] }
 config = "0.15.11"
 secrecy = { version = "0.10.3", features = ["serde"] }
 serde_with = "3.12.0"
-
 actix-web = { version = "4.10.2", optional = true, features = ["rustls"] }
 rdkafka = { version = "0.37.0", optional = true, features = [
     "cmake-build",
@@ -39,7 +41,7 @@ anyhow = "1.0.98"
 tokio = { version = "1", features = ["full"] }
 
 [features]
-default = ["retry"]
+default = ["reqwest_middleware"]
 actix = ["dep:actix-web"]
 kafka = ["dep:rdkafka"]
-retry = []
+reqwest_middleware = []
