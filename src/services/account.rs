@@ -160,18 +160,19 @@ pub enum WorkspaceMode {
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupStatus {
-    #[serde(deserialize_with = "crate::rounded_float")]
-    pub data_size: u32,
+    #[serde(deserialize_with = "crate::optional_rounded_float", default)]
+    pub data_size: Option<u32>,
 
-    #[serde(deserialize_with = "crate::rounded_float")]
-    pub blobs_size: u32,
+    #[serde(deserialize_with = "crate::optional_rounded_float", default)]
+    pub blobs_size: Option<u32>,
 
-    #[serde(deserialize_with = "crate::rounded_float")]
-    pub backup_size: u32,
+    #[serde(deserialize_with = "crate::optional_rounded_float", default)]
+    pub backup_size: Option<u32>,
 
     #[serde(with = "chrono::serde::ts_milliseconds")]
     pub last_backup: Timestamp,
-    pub backups: u32,
+
+    pub backups: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -195,13 +196,17 @@ pub struct WorkspaceVersion {
 pub struct WorkspaceStatus {
     #[serde(flatten)]
     pub version: WorkspaceVersion,
-    pub mode: WorkspaceMode,
+    pub mode: Option<WorkspaceMode>,
+
     pub processing_progress: Option<u32>,
     #[serde(with = "chrono::serde::ts_milliseconds_option")]
     pub last_processing_time: Option<Timestamp>,
     #[serde(with = "chrono::serde::ts_milliseconds_option")]
     pub last_visit: Option<Timestamp>,
-    pub is_disabled: bool,
+
+    #[serde(default)]
+    pub is_disabled: Option<bool>,
+
     pub processing_attempts: Option<u32>,
     pub processing_message: Option<String>,
     pub backup_info: Option<BackupStatus>,
