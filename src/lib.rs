@@ -56,3 +56,24 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+pub(crate) fn optional_rounded_float<'de, D, T: num_traits::FromPrimitive>(
+    deserializer: D,
+) -> std::result::Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+
+    if let Some(float) = Option::<f64>::deserialize(deserializer)? {
+        T::from_f64(float.round()).map(Some).ok_or_else(|| {
+            serde::de::Error::custom(format!(
+                "Cannot convert {} to {}",
+                float,
+                std::any::type_name::<T>()
+            ))
+        })
+    } else {
+        Ok(None)
+    }
+}
