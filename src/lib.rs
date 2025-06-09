@@ -55,6 +55,8 @@ pub enum Error {
     Other(&'static str),
 }
 
+pub type Result<T> = std::result::Result<T, Error>;
+
 pub(crate) fn optional_rounded_float<'de, D, T: num_traits::FromPrimitive>(
     deserializer: D,
 ) -> std::result::Result<Option<T>, D::Error>
