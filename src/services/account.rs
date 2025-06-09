@@ -160,9 +160,15 @@ pub enum WorkspaceMode {
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupStatus {
+    #[serde(deserialize_with = "crate::rounded_float")]
     pub data_size: u32,
+
+    #[serde(deserialize_with = "crate::rounded_float")]
     pub blobs_size: u32,
+
+    #[serde(deserialize_with = "crate::rounded_float")]
     pub backup_size: u32,
+
     #[serde(with = "chrono::serde::ts_milliseconds")]
     pub last_backup: Timestamp,
     pub backups: u32,
