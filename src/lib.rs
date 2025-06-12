@@ -33,6 +33,9 @@ pub enum Error {
     Reqwest(#[from] reqwest::Error),
 
     #[error(transparent)]
+    Ws(#[from] reqwest_websocket::Error),
+
+    #[error(transparent)]
     ReqwestMiddleware(#[from] reqwest_middleware::Error),
 
     #[cfg(feature = "kafka")]

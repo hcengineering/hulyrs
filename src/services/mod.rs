@@ -17,6 +17,7 @@ pub mod account;
 pub mod core;
 pub mod jwt;
 pub mod kvs;
+mod rpc;
 pub mod transactor;
 
 pub use reqwest_middleware::{ClientWithMiddleware as HttpClient, RequestBuilder};

@@ -12,22 +12,26 @@
 // limitations under the License.
 //
 
+use crate::Result;
+use crate::services::core::WorkspaceUuid;
+use crate::services::transactor::backend::Backend;
+use crate::services::transactor::backend::http::{HttpBackend, HttpClient};
+use crate::services::transactor::backend::ws::{WsBackend, WsBackendOpts};
+use crate::services::transactor::methods::Method;
+use crate::services::{ForceScheme, JsonClient};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
-use tracing::*;
+use subscription::SubscribedQuery;
 use url::Url;
 
+pub mod backend;
 pub mod comm;
 pub mod document;
+pub mod methods;
 pub mod person;
+mod subscription;
 pub mod tx;
-
-use crate::services::core::WorkspaceUuid;
-use crate::{
-    Result,
-    services::{ForceHttpScheme, HttpClient, JsonClient},
-};
 
 pub trait Transaction {
     fn to_value(self) -> crate::Result<Value>;
@@ -36,7 +40,6 @@ pub trait Transaction {
 pub trait TransactionValue {
     fn matches(&self, class: Option<&str>, domain: Option<&str>) -> bool;
 }
-
 impl TransactionValue for Value {
     fn matches(&self, class: Option<&str>, domain: Option<&str>) -> bool {
         let class = class.is_none() || self["_class"].as_str() == class;
@@ -47,28 +50,55 @@ impl TransactionValue for Value {
 }
 
 #[derive(Clone)]
-pub struct TransactorClient {
-    pub workspace: WorkspaceUuid,
-    pub base: Url,
-    token: SecretString,
-    http: HttpClient,
+pub struct TransactorClient<B> {
+    backend: B,
 }
 
-impl PartialEq for TransactorClient {
+impl<B: Backend> PartialEq for TransactorClient<B> {
     fn eq(&self, other: &Self) -> bool {
-        self.workspace == other.workspace
-            && self.token.expose_secret() == other.token.expose_secret()
-            && self.base == other.base
+        self.backend.workspace() == other.backend.workspace()
+            && self.backend.provide_token() == other.backend.provide_token()
+            && self.base() == other.base()
     }
 }
 
-impl super::TokenProvider for &TransactorClient {
+impl<B: Backend> super::TokenProvider for &TransactorClient<B> {
     fn provide_token(&self) -> Option<&str> {
-        Some(self.token.expose_secret())
+        self.backend.provide_token()
     }
 }
 
-impl TransactorClient {
+impl<B: Backend> TransactorClient<B> {
+    pub fn base(&self) -> &Url {
+        self.backend.base()
+    }
+
+    pub fn workspace(&self) -> WorkspaceUuid {
+        self.backend.workspace()
+    }
+
+    pub async fn get<T: DeserializeOwned + Send>(
+        &self,
+        method: Method,
+        params: impl IntoIterator<Item = (String, Value)> + Send,
+    ) -> Result<T> {
+        self.backend.get(method, params).await
+    }
+
+    pub async fn post<T: DeserializeOwned + Send, Q: Serialize>(
+        &self,
+        method: Method,
+        body: &Q,
+    ) -> Result<T> {
+        self.backend.post(method, body).await
+    }
+
+    pub(in crate::services::transactor) fn backend(&self) -> &B {
+        &self.backend
+    }
+}
+
+impl TransactorClient<HttpBackend> {
     pub fn new(
         http: HttpClient,
         base: Url,
@@ -77,21 +107,51 @@ impl TransactorClient {
     ) -> Result<Self> {
         let base = base.force_http_scheme();
         Ok(Self {
-            workspace,
-            http,
-            base,
-            token: token.into(),
+            backend: HttpBackend::new(http, base, workspace, token),
         })
     }
+}
 
+impl TransactorClient<HttpBackend> {
     pub async fn tx_raw<T: Serialize, R: DeserializeOwned>(&self, tx: T) -> Result<R> {
-        let path = format!("/api/v1/tx/{}", self.workspace);
-        let url = self.base.join(&path)?;
+        let path = format!("/api/v1/tx/{}", self.workspace());
+        let url = self.base().join(&path)?;
 
-        <HttpClient as JsonClient>::post(&self.http, self, url, &tx).await
+        <HttpBackend as JsonClient>::post(self.backend(), &self, url, &tx).await
     }
 
     pub async fn tx<T: Transaction, R: DeserializeOwned>(&self, tx: T) -> Result<R> {
+        self.tx_raw(tx.to_value()?).await
+    }
+}
+
+impl TransactorClient<WsBackend> {
+    pub async fn new_ws(
+        base: Url,
+        workspace: WorkspaceUuid,
+        token: impl Into<SecretString>,
+        opts: WsBackendOpts,
+    ) -> Result<Self> {
+        let base = base.force_ws_scheme();
+        let token = token.into();
+        let backend = WsBackend::connect(base, workspace, token.expose_secret(), opts).await?;
+
+        Ok(Self { backend })
+    }
+
+    pub async fn subscribe<T: crate::services::event::Event + DeserializeOwned>(
+        &self,
+    ) -> SubscribedQuery<T> {
+        SubscribedQuery::new(self.clone())
+    }
+}
+
+impl TransactorClient<WsBackend> {
+    pub async fn tx_raw<T: Serialize, R: DeserializeOwned + Send>(&self, tx: T) -> Result<R> {
+        self.backend.post(Method::Tx, &tx).await
+    }
+
+    pub async fn tx<T: Transaction, R: DeserializeOwned + Send>(&self, tx: T) -> Result<R> {
         self.tx_raw(tx.to_value()?).await
     }
 }
@@ -108,6 +168,7 @@ pub mod kafka {
     };
     use serde_json::{self as json, Value};
     use std::time::Duration;
+    use tracing::{debug, warn};
     use uuid::Uuid;
 
     pub struct KafkaProducer {

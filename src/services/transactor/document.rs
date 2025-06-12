@@ -27,10 +27,9 @@ use super::{
 
 use crate::services::core::ser::Data;
 use crate::services::core::{Account, PersonId, Ref, Timestamp};
-use crate::{
-    Error, Result,
-    services::{HttpClient, JsonClient},
-};
+use crate::services::transactor::backend::Backend;
+use crate::services::transactor::methods::Method;
+use crate::{Error, Result};
 
 static COUNT: AtomicUsize = AtomicUsize::new(0);
 static RANDOM: LazyLock<String> = LazyLock::new(|| {
@@ -202,14 +201,6 @@ impl FindOptionsBuilder {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FindResult<T> {
-    pub data_type: String,
-    pub total: i64,
-    pub value: Vec<T>,
-}
-
 pub trait DocumentClient {
     fn get_account(&self) -> impl Future<Output = Result<Account>>;
 
@@ -228,12 +219,9 @@ pub trait DocumentClient {
     ) -> impl Future<Output = Result<Option<T>>>;
 }
 
-impl DocumentClient for super::TransactorClient {
+impl<B: Backend> DocumentClient for super::TransactorClient<B> {
     async fn get_account(&self) -> Result<Account> {
-        let path = format!("/api/v1/account/{}", self.workspace);
-        let url = self.base.join(&path)?;
-
-        <HttpClient as JsonClient>::get(&self.http, self, url).await
+        self.get(Method::Account, []).await
     }
 
     async fn find_all<Q: Serialize, T: DeserializeOwned>(
@@ -242,9 +230,6 @@ impl DocumentClient for super::TransactorClient {
         query: Q,
         options: &FindOptions,
     ) -> Result<FindResult<T>> {
-        let path = format!("/api/v1/find-all/{}", self.workspace);
-        let mut url = self.base.join(&path)?;
-
         let query = json::to_value(query)?;
 
         if !query.is_object() {
@@ -253,13 +238,16 @@ impl DocumentClient for super::TransactorClient {
 
         let query = query.as_object().unwrap();
 
-        url.query_pairs_mut()
-            .append_pair("class", class)
-            .append_pair("query", &json::to_string(&query)?)
-            .append_pair("options", &json::to_string(&options)?);
-
-        let mut result: FindResult<Value> =
-            <HttpClient as JsonClient>::get(&self.http, self, url).await?;
+        let mut result: FindResult<Value> = self
+            .get(
+                Method::FindAll,
+                [
+                    ("class", class.into()),
+                    ("query", json::to_value(&query)?),
+                    ("options", json::to_value(&options)?),
+                ],
+            )
+            .await?;
 
         // TODO?
         /* api-client/src/rest.ts
@@ -294,7 +282,6 @@ impl DocumentClient for super::TransactorClient {
         }
 
         let result = FindResult {
-            data_type: result.data_type,
             total: result.total,
             value: {
                 let mut value = Vec::new();
@@ -304,6 +291,20 @@ impl DocumentClient for super::TransactorClient {
                 }
 
                 value
+            },
+            lookup_map: match result.lookup_map {
+                Some(lookup_map) => {
+                    let new_map = lookup_map
+                        .into_iter()
+                        .map(|(k, v)| match json::from_value(v) {
+                            Ok(val) => Ok((k, val)),
+                            Err(e) => Err(e.into()),
+                        })
+                        .collect::<Result<_>>()?;
+
+                    Some(new_map)
+                }
+                None => None,
             },
         };
 
@@ -329,5 +330,12 @@ impl DocumentClient for super::TransactorClient {
             .value
             .into_iter()
             .next())
+    }
+
+    async fn tx<R: DeserializeOwned + Send, T>(&self, tx: T) -> Result<R>
+    where
+        T: Transaction,
+    {
+        self.post(Method::Tx, &tx.transaction()).await
     }
 }
