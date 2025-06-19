@@ -12,59 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
-use serde_json as json;
-
 use derive_builder::Builder;
+use serde::{Deserialize, Serialize};
+use serde_json::{self as json};
 
 use crate::services::types::{PersonId, Timestamp};
 
 type Date = chrono::DateTime<chrono::Utc>;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum MessageType {
-    #[default]
-    Message,
-    Activity,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "lowercase")]
-pub enum RepliesUpdate {
-    Increment,
-    Decrement,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct MessagesGroup {
-    pub card: CardId,
-    pub blob_id: BlobId,
-    pub from_sec: Date,
-    pub to_sec: Date,
-    pub count: u32,
-    pub patches: Option<Vec<Patch>>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct Patch {
-    pub message: MessageId,
-    pub r#type: PatchType,
-    pub content: String,
-    pub creator: PersonId,
-    pub created: Date,
-}
-
 type MessageId = String;
 type CardId = String;
 type CardType = String;
-type RichText = String;
-type MessageData = json::Value;
+type Markdown = String;
 type BlobId = String;
 
 pub trait PartitionKeyProvider {
@@ -81,218 +42,204 @@ macro_rules! message_event {
     };
 }
 
+pub type MessageExtra = HashMap<String, json::Value>;
+pub type BlobMetadata = HashMap<String, json::Value>;
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum MessageType {
+    #[default]
+    Message,
+    Activity,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Builder, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateMessageOptions {
+    // Available for regular users (Not implemented yet)
+    #[builder(default)]
+    skip_link_previews: bool,
+
+    // Available only for system
+    #[builder(default)]
+    no_notify: bool,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Builder)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateMessageEvent {
+    #[builder(setter(into))]
+    pub card_id: CardId,
+
+    #[builder(setter(into, strip_option))]
+    pub card_type: CardType,
+
     #[builder(setter(into, strip_option), default)]
-    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
 
     #[builder(default)]
     pub message_type: MessageType,
 
     #[builder(setter(into))]
-    pub card: CardId,
+    pub content: Markdown,
 
     #[builder(setter(into, strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub card_type: Option<CardType>,
+    pub extra: Option<MessageExtra>,
 
     #[builder(setter(into))]
-    pub content: RichText,
-
-    #[builder(setter(into))]
-    pub creator: PersonId,
+    pub social_id: PersonId,
 
     #[builder(setter(into, strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<MessageData>,
+    pub date: Option<Timestamp>,
 
-    #[builder(setter(into, strip_option), default)]
+    #[builder(setter(strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub external_id: Option<String>,
-
-    #[builder(setter(into, strip_option), default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub created: Option<Timestamp>,
+    pub options: Option<CreateMessageOptions>,
 }
-message_event!(CreateMessageEvent, card);
+message_event!(CreateMessageEvent, card_id);
 
-/*
-#[derive(Serialize, Deserialize, Debug, Builder)]
+#[derive(Serialize, Deserialize, Debug, Clone, Builder)]
 #[serde(rename_all = "camelCase")]
-pub struct RemoveMessagesEvent {
-    #[builder(setter(into))]
-    pub card: CardId,
-
-    #[builder(setter(into))]
-    pub messages: Vec<MessageId>,
-}
-message_event!(RemoveMessagesEvent, card);
-*/
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub enum PatchType {
-    Update,
-    Remove,
-    //AddReaction,
-    //RemoveReaction,
-    //AddReply,
-    //RemoveReply,
-    //AddFile,
-    //RemoveFile,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum PatchData {
-    Update {
-        content: Option<RichText>,
-        data: Option<MessageData>,
-    },
-
-    Remove {},
+pub struct UpdatePatchOptions {
+    #[builder(default)]
+    skip_link_previews_update: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Builder)]
 #[serde(rename_all = "camelCase")]
-pub struct CreatePatchEvent {
-    #[builder(setter(custom), default = PatchType::Update)]
-    pub patch_type: PatchType,
+pub struct UpdatePatchEvent {
+    #[builder(setter(into))]
+    pub card_id: CardId,
 
     #[builder(setter(into))]
-    pub card: CardId,
+    pub message_id: String,
 
     #[builder(setter(into))]
-    pub message: MessageId,
+    pub content: Markdown,
+
+    #[builder(setter(into, strip_option), default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra: Option<MessageExtra>,
 
     #[builder(setter(into))]
-    pub message_created: Date,
+    pub social_id: PersonId,
 
-    #[builder(setter(into))]
-    pub data: PatchData,
+    #[builder(setter(into, strip_option), default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date: Option<Timestamp>,
 
-    #[builder(setter(into))]
-    pub creator: PersonId,
+    #[builder(setter(into, strip_option), default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub options: Option<UpdatePatchOptions>,
 }
-message_event!(CreatePatchEvent, card);
+message_event!(UpdatePatchEvent, card_id);
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Builder)]
 #[serde(rename_all = "camelCase")]
-pub struct CreateReactionEvent {
-    //  pub r#type: MessageRequestEventType,
-    pub card: CardId,
-    pub message: MessageId,
-    pub reaction: String,
-    pub creator: PersonId,
-}
-message_event!(CreateReactionEvent, card);
+pub struct RemovePatchEvent {
+    #[builder(setter(into))]
+    pub card_id: CardId,
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct RemoveReactionEvent {
-    //  pub r#type: MessageRequestEventType,
-    pub card: CardId,
-    pub message: MessageId,
-    pub reaction: String,
-    pub creator: PersonId,
+    #[builder(setter(into))]
+    pub message_id: MessageId,
+
+    #[builder(setter(into))]
+    pub social_id: PersonId,
+
+    #[builder(setter(into, strip_option), default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date: Option<Timestamp>,
 }
-message_event!(RemoveReactionEvent, card);
+message_event!(RemovePatchEvent, card_id);
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(tag = "opcode", rename_all = "lowercase")]
+pub enum ReactionPatchOperation {
+    Add { reaction: String },
+    Remove { reaction: String },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Builder)]
+#[serde(rename_all = "camelCase")]
+pub struct ReactionPatchEvent {
+    #[builder(setter(into))]
+    pub card_id: CardId,
+
+    #[builder(setter(into))]
+    pub message_id: MessageId,
+
+    pub operation: ReactionPatchOperation,
+
+    #[builder(setter(into))]
+    pub social_id: PersonId,
+
+    #[builder(setter(into, strip_option), default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date: Option<Timestamp>,
+}
+message_event!(ReactionPatchEvent, card_id);
 
 #[derive(Serialize, Deserialize, Debug, Builder, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct FileData {
+pub struct BlobData {
     #[builder(setter(into))]
     pub blob_id: BlobId,
 
     #[builder(setter(into))]
-    #[serde(rename = "type")]
     pub mime_type: String,
 
     #[builder(setter(into))]
-    pub filename: String,
+    pub file_name: String,
 
     #[builder(setter(into), default)]
     pub size: u32,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(setter(into, strip_option), default)]
-    pub meta: Option<HashMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<BlobMetadata>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Builder)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(tag = "opcode", rename_all = "lowercase")]
+pub enum BlobPatchOperation {
+    Attach {
+        blobs: Vec<BlobData>,
+    },
+    Detach {
+        #[serde(rename = "blobIds")]
+        blob_ids: Vec<BlobId>,
+    },
+    Set {
+        blobs: Vec<BlobData>,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Builder)]
 #[serde(rename_all = "camelCase")]
-pub struct CreateFileEvent {
+pub struct BlobPatchEvent {
     #[builder(setter(into))]
-    pub card: CardId,
+    pub card_id: CardId,
 
     #[builder(setter(into))]
-    pub message: MessageId,
+    pub message_id: MessageId,
 
-    #[builder(setter(into))]
-    pub message_created: Date,
+    pub operations: Vec<BlobPatchOperation>,
 
-    #[builder(setter(into))]
-    pub creator: PersonId,
+    #[builder(setter(into, strip_option), default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub social_id: Option<PersonId>,
 
-    pub data: FileData,
+    #[builder(setter(into, strip_option), default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date: Option<Timestamp>,
 }
-message_event!(CreateFileEvent, card);
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct RemoveFileEvent {
-    //  pub r#type: MessageRequestEventType,
-    pub card: CardId,
-    pub message: MessageId,
-    pub blob_id: BlobId,
-    pub creator: PersonId,
-}
-message_event!(RemoveFileEvent, card);
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateThreadEvent {
-    //  pub r#type: MessageRequestEventType,
-    pub card: CardId,
-    pub message: MessageId,
-    pub thread: CardId,
-}
-message_event!(CreateThreadEvent, card);
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateThreadEvent {
-    //  pub r#type: MessageRequestEventType,
-    pub thread: CardId,
-    pub replies: RepliesUpdate,
-    pub last_reply: Option<Date>,
-}
-message_event!(UpdateThreadEvent, thread);
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateMessagesGroupEvent {
-    //  pub r#type: MessageRequestEventType,
-    pub group: MessagesGroup,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct RemoveMessagesGroupEvent {
-    // pub r#type: MessageRequestEventType,
-    pub card: CardId,
-    pub blob_id: BlobId,
-}
-message_event!(RemoveMessagesGroupEvent, card);
+message_event!(BlobPatchEvent, card_id);
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CreateMessageResult {
-    pub id: String,
+    pub message_id: MessageId,
     pub created: Date,
 }
-/*
-
-export interface RemoveMessagesResult {
-  messages: MessageID[]
-}
-*/

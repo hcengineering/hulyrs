@@ -14,7 +14,7 @@
 //
 
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use serde_json as json;
+use serde_json::{self as json};
 
 use crate::{
     Result,
@@ -29,21 +29,12 @@ pub use message::*;
 pub enum MessageRequestType {
     // Message
     CreateMessage,
-    RemoveMessages,
-
-    CreatePatch,
-
-    CreateReaction,
-    RemoveReaction,
-
-    CreateFile,
-    RemoveFile,
-
-    CreateThread,
-    UpdateThread,
-
-    CreateMessagesGroup,
-    RemoveMessagesGroup,
+    UpdatePatch,
+    RemovePatch,
+    ReactionPatch,
+    BlobPatch,
+    LinkPreviewPatch,
+    ThreadPatch,
 
     // Label
     CreateLabel,
@@ -81,7 +72,7 @@ impl<T: serde::Serialize> Envelope<T> {
 pub trait EventClient {
     fn request_raw<T: Serialize, R: DeserializeOwned>(
         &self,
-        envelope: &Envelope<T>,
+        body: &T,
     ) -> impl Future<Output = Result<R>>;
 
     fn request_for_result<T: Serialize, R: DeserializeOwned>(
@@ -98,7 +89,7 @@ pub trait EventClient {
         request: T,
     ) -> impl Future<Output = Result<()>> {
         async {
-            self.request_raw::<T, json::Value>(&Envelope::new(r#type, request))
+            self.request_raw::<_, json::Value>(&Envelope::new(r#type, request))
                 .await
                 .map(|_| ())
         }
@@ -106,10 +97,7 @@ pub trait EventClient {
 }
 
 impl EventClient for super::TransactorClient {
-    async fn request_raw<T: Serialize, R: DeserializeOwned>(
-        &self,
-        envelope: &Envelope<T>,
-    ) -> Result<R> {
+    async fn request_raw<T: Serialize, R: DeserializeOwned>(&self, envelope: &T) -> Result<R> {
         let path = format!("/api/v1/event/{}", self.workspace);
         let url = self.base.join(&path)?;
 
