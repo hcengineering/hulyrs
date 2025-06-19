@@ -33,7 +33,7 @@ pub struct Config {
     pub account_service: Option<Url>,
 
     #[cfg(feature = "reqwest_middleware")]
-    #[builder(default = "NonZeroU32::try_from(250).unwrap()")]
+    #[builder(default = "NonZeroU32::try_from(10).unwrap()")]
     pub account_service_rate_limit: NonZeroU32,
 
     #[builder(setter(strip_option, into), default)]
@@ -94,7 +94,7 @@ impl Config {
         const DEFAULTS: &str = r#"
         token_secret = "secret"
         account_service = "http://localhost:8080/account"
-        account_service_rate_limit = 100
+        account_service_rate_limit = 10
         kvs_service = "http://localhost:8094"
         kafka_bootstrap = "localhost:19092"
         log = "INFO"

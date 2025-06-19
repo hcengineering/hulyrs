@@ -368,7 +368,7 @@ impl ServiceFactory {
                 impl Limiter {
                     fn new(limit: NonZeroU32) -> Self {
                         let limiter = RateLimiter::direct_with_clock(
-                            Quota::per_minute(limit).allow_burst(1.try_into().unwrap()),
+                            Quota::per_second(limit).allow_burst(1.try_into().unwrap()),
                             MonotonicClock,
                         );
 
@@ -386,8 +386,8 @@ impl ServiceFactory {
             };
 
             ClientBuilder::new(reqwest::Client::new())
-                //.with(retry_after)
                 .with(retry)
+                //.with(retry_after)
                 .with(rate_limiter)
                 .build()
         };
