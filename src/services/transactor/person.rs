@@ -32,7 +32,7 @@ pub struct EnsurePersonRequest {
     #[builder(setter(into))]
     pub first_name: String,
 
-    #[builder(setter(into, strip_option), default)]
+    #[builder(setter(into), default)]
     pub last_name: Option<String>,
 }
 
