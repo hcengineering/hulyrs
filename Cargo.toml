@@ -12,7 +12,6 @@ reqwest = { version = "0.12.15", default-features = false, features = [
 ] }
 reqwest-middleware = { version = "0.4.2", features = ["json", "rustls-tls"] }
 reqwest-retry = { version = "0.7.0" }
-reqwest-retry-after = "0.2.0"
 reqwest-ratelimit = "0.4.1"
 governor = { version = "0.10.0", features = ["std"] }
 serde = "1.0.219"

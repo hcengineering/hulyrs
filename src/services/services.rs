@@ -314,7 +314,6 @@ impl ServiceFactory {
                                 }
 
                                 let retry_after = hstr(success.headers().get("Retry-After"));
-
                                 let limit = hstr(success.headers().get("X-RateLimit-Limit"));
                                 let limit_remaining =
                                     hstr(success.headers().get("X-RateLimit-Remaining"));
@@ -344,8 +343,6 @@ impl ServiceFactory {
 
             let retry =
                 RetryTransientMiddleware::new_with_policy_and_strategy(policy, TransactorStrategy);
-
-            let retry_after = reqwest_retry_after::RetryAfterMiddleware::new();
 
             let rate_limiter = {
                 use governor::{
@@ -386,9 +383,8 @@ impl ServiceFactory {
             };
 
             ClientBuilder::new(reqwest::Client::new())
-                .with(retry)
-                //.with(retry_after)
                 .with(rate_limiter)
+                .with(retry)
                 .build()
         };
 
