@@ -31,11 +31,11 @@ pub struct Claims {
     #[builder(setter(into))]
     pub account: Uuid,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     #[builder(setter(into, strip_option), default)]
     pub workspace: Option<Uuid>,
 
-    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    #[serde(skip_serializing_if = "HashMap::is_empty", default)]
     #[builder(setter(custom), default)]
     pub extra: HashMap<String, String>,
 }
