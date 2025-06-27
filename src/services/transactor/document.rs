@@ -275,9 +275,9 @@ pub trait DocumentClient {
         options: &FindOptions,
     ) -> impl Future<Output = Result<Option<T>>>;
 
-    fn tx<R: DeserializeOwned, T>(&self, tx: T) -> impl Future<Output = Result<R>>
-    where
-        T: Transaction;
+    fn tx_raw<T: Serialize, R: DeserializeOwned>(&self, tx: T) -> impl Future<Output = Result<R>>;
+
+    fn tx<T: Transaction, R: DeserializeOwned>(&self, tx: T) -> impl Future<Output = Result<R>>;
 }
 
 impl DocumentClient for super::TransactorClient {
@@ -382,14 +382,14 @@ impl DocumentClient for super::TransactorClient {
             .into_iter()
             .next())
     }
-
-    async fn tx<R: DeserializeOwned, T>(&self, tx: T) -> Result<R>
-    where
-        T: Transaction,
-    {
+    async fn tx_raw<T: Serialize, R: DeserializeOwned>(&self, tx: T) -> Result<R> {
         let path = format!("/api/v1/tx/{}", self.workspace);
         let url = self.base.join(&path)?;
 
-        <HttpClient as JsonClient>::post(&self.http, self, url, &tx.transaction()).await
+        <HttpClient as JsonClient>::post(&self.http, self, url, &tx).await
+    }
+
+    async fn tx<T: Transaction, R: DeserializeOwned>(&self, tx: T) -> Result<R> {
+        self.tx_raw(tx.transaction()).await
     }
 }
