@@ -23,6 +23,7 @@ use url::Url;
 pub mod document;
 pub mod event;
 pub mod person;
+pub mod tx;
 
 pub type HttpClient = ClientWithMiddleware;
 

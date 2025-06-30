@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-use crate::services::transactor::document::Doc;
+use crate::services::transactor::tx::Doc;
 use crate::services::types::AccountUuid;
 use serde::{Deserialize, Serialize};
 
