@@ -40,10 +40,10 @@ pub struct Doc {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub modified_by: Option<PersonId>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub created_by: Option<PersonId>,
 
-    #[serde(with = "chrono::serde::ts_milliseconds_option")]
+    #[serde(with = "chrono::serde::ts_milliseconds_option", default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_on: Option<Timestamp>,
 }
@@ -52,7 +52,7 @@ pub struct Doc {
 #[serde(rename_all = "camelCase")]
 pub struct Tx {
     #[serde(flatten)]
-    pub parent: Doc,
+    pub doc: Doc,
     pub object_space: Ref,
 }
 
@@ -60,7 +60,7 @@ pub struct Tx {
 #[serde(rename_all = "camelCase")]
 pub struct TxCUD {
     #[serde(flatten)]
-    pub parent: Tx,
+    pub tx: Tx,
     pub object_id: Ref,
     pub object_class: Ref,
 
@@ -78,7 +78,7 @@ pub struct TxCUD {
 #[serde(rename_all = "camelCase")]
 pub struct TxCreateDoc<T> {
     #[serde(flatten)]
-    pub parent: TxCUD,
+    pub txcud: TxCUD,
     pub attributes: T,
 }
 
@@ -86,5 +86,16 @@ pub struct TxCreateDoc<T> {
 #[serde(rename_all = "camelCase")]
 pub struct TxRemoveDoc {
     #[serde(flatten)]
-    pub parent: TxCUD,
+    pub txcud: TxCUD,
+}
+
+pub type OperationDomain = String;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TxDomainEvent<T: Serialize> {
+    #[serde(flatten)]
+    pub tx: Tx,
+
+    pub domain: OperationDomain,
+    pub event: T,
 }

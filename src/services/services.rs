@@ -16,6 +16,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use rdkafka::consumer::StreamConsumer;
 use reqwest::{self, Response, Url};
 use reqwest::{StatusCode, header::HeaderValue};
 use reqwest_middleware::ClientBuilder;
@@ -39,7 +40,7 @@ use super::{
 use crate::{Error, Result, config::Config};
 
 #[cfg(feature = "kafka")]
-use crate::services::transactor::event::kafka::KafkaEventPublisher;
+use crate::services::transactor::kafka;
 
 pub trait RequestBuilderExt {
     fn send_ext(self) -> impl Future<Output = Result<Response>>;
@@ -454,8 +455,8 @@ impl ServiceFactory {
     }
 
     #[cfg(feature = "kafka")]
-    pub fn new_kafka_event_publisher(&self, topic: &str) -> Result<KafkaEventPublisher> {
-        KafkaEventPublisher::new(&self.config, topic)
+    pub fn new_kafka_publisher(&self, topic: &str) -> Result<kafka::KafkaProducer> {
+        kafka::KafkaProducer::new(&self.config, topic)
     }
 
     pub fn config(&self) -> &Config {

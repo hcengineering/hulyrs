@@ -18,7 +18,10 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{self as json, Value};
 
-use super::tx::{Doc, Obj, Tx, TxCUD, TxCreateDoc, TxRemoveDoc};
+use super::{
+    Transaction,
+    tx::{Doc, Obj, Tx, TxCUD, TxCreateDoc, TxRemoveDoc},
+};
 
 use crate::{
     Error, Result,
@@ -55,11 +58,11 @@ pub struct CreateDocument<T: Serialize> {
 }
 
 impl<T: Serialize> Transaction for CreateDocument<T> {
-    fn transaction(self) -> impl Serialize {
-        TxCreateDoc {
-            parent: TxCUD {
-                parent: Tx {
-                    parent: Doc {
+    fn to_value(self) -> Result<Value> {
+        let doc = TxCreateDoc {
+            txcud: TxCUD {
+                tx: Tx {
+                    doc: Doc {
                         obj: Obj {
                             class: "core:class:TxCreateDoc".to_string(),
                         },
@@ -81,7 +84,9 @@ impl<T: Serialize> Transaction for CreateDocument<T> {
             },
 
             attributes: self.attributes,
-        }
+        };
+
+        Ok(json::to_value(&doc)?)
     }
 }
 
@@ -110,11 +115,11 @@ struct RemoveDocument {
 }
 
 impl Transaction for RemoveDocument {
-    fn transaction(self) -> impl Serialize {
-        TxRemoveDoc {
-            parent: TxCUD {
-                parent: Tx {
-                    parent: Doc {
+    fn to_value(self) -> Result<Value> {
+        let doc = TxRemoveDoc {
+            txcud: TxCUD {
+                tx: Tx {
+                    doc: Doc {
                         obj: Obj {
                             class: "core:class:TxRemoveDoc".to_string(),
                         },
@@ -134,12 +139,10 @@ impl Transaction for RemoveDocument {
                 attached_to_class: None,
                 collection: None,
             },
-        }
-    }
-}
+        };
 
-pub trait Transaction {
-    fn transaction(self) -> impl Serialize;
+        Ok(json::to_value(&doc)?)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, Builder)]
@@ -203,10 +206,6 @@ pub trait DocumentClient {
         query: Q,
         options: &FindOptions,
     ) -> impl Future<Output = Result<Option<T>>>;
-
-    fn tx_raw<T: Serialize, R: DeserializeOwned>(&self, tx: T) -> impl Future<Output = Result<R>>;
-
-    fn tx<T: Transaction, R: DeserializeOwned>(&self, tx: T) -> impl Future<Output = Result<R>>;
 }
 
 impl DocumentClient for super::TransactorClient {
@@ -310,15 +309,5 @@ impl DocumentClient for super::TransactorClient {
             .value
             .into_iter()
             .next())
-    }
-    async fn tx_raw<T: Serialize, R: DeserializeOwned>(&self, tx: T) -> Result<R> {
-        let path = format!("/api/v1/tx/{}", self.workspace);
-        let url = self.base.join(&path)?;
-
-        <HttpClient as JsonClient>::post(&self.http, self, url, &tx).await
-    }
-
-    async fn tx<T: Transaction, R: DeserializeOwned>(&self, tx: T) -> Result<R> {
-        self.tx_raw(tx.transaction()).await
     }
 }

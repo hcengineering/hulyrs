@@ -58,10 +58,12 @@ pub enum MessageType {
 pub struct CreateMessageOptions {
     // Available for regular users (Not implemented yet)
     #[builder(default)]
+    #[serde(default)]
     skip_link_previews: bool,
 
     // Available only for system
     #[builder(default)]
+    #[serde(default)]
     no_notify: bool,
 }
 
@@ -105,6 +107,7 @@ message_event!(CreateMessageEvent, card_id);
 #[serde(rename_all = "camelCase")]
 pub struct UpdatePatchOptions {
     #[builder(default)]
+    #[serde(default)]
     skip_link_previews_update: bool,
 }
 

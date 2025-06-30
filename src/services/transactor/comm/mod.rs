@@ -14,7 +14,7 @@
 //
 
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use serde_json::{self as json};
+use serde_json::{self as json, Value};
 
 use crate::{
     Result,
@@ -22,6 +22,7 @@ use crate::{
 };
 
 mod message;
+use super::tx::{Doc, Obj, Tx, TxDomainEvent};
 pub use message::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -44,6 +45,7 @@ pub enum MessageRequestType {
     AddCollaborators,
     RemoveCollaborators,
 
+    UpdateNotification,
     CreateNotification,
     RemoveNotifications,
 
@@ -53,14 +55,14 @@ pub enum MessageRequestType {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Envelope<T: serde::Serialize> {
-    r#type: MessageRequestType,
+pub struct Envelope<T: Serialize> {
+    pub r#type: MessageRequestType,
 
     #[serde(flatten)]
-    request: T,
+    pub request: T,
 }
 
-impl<T: serde::Serialize> Envelope<T> {
+impl<T: Serialize + DeserializeOwned> Envelope<T> {
     pub fn new(r#type: MessageRequestType, body: T) -> Self {
         Self {
             r#type,
@@ -69,13 +71,42 @@ impl<T: serde::Serialize> Envelope<T> {
     }
 }
 
+impl<T: Serialize> super::Transaction for Envelope<T> {
+    fn to_value(self) -> Result<Value> {
+        let event = TxDomainEvent {
+            tx: Tx {
+                doc: Doc {
+                    obj: Obj {
+                        class: "core:class:TxDomainEvent".to_string(),
+                    },
+
+                    id: ksuid::Ksuid::generate().to_hex(),
+                    space: "core:space:Tx".to_string(),
+
+                    modified_on: None,
+                    modified_by: None,
+                    created_on: None,
+                    created_by: None,
+                },
+                object_space: "core:space:Domain".to_string(),
+            },
+
+            domain: "communication".to_string(),
+            event: self,
+        };
+        Ok(json::to_value(&event)?)
+    }
+}
+
 pub trait EventClient {
-    fn request_raw<T: Serialize, R: DeserializeOwned>(
+    #[deprecated = "use transactor directly"]
+    fn request_raw<T: Serialize + DeserializeOwned, R: DeserializeOwned>(
         &self,
         body: &T,
     ) -> impl Future<Output = Result<R>>;
 
-    fn request_for_result<T: Serialize, R: DeserializeOwned>(
+    #[deprecated = "use transactor directly"]
+    fn request_for_result<T: Serialize + DeserializeOwned, R: DeserializeOwned>(
         &self,
         r#type: MessageRequestType,
         request: T,
@@ -83,7 +114,8 @@ pub trait EventClient {
         async { Ok(self.request_raw(&Envelope::new(r#type, request)).await?) }
     }
 
-    fn request<T: Serialize>(
+    #[deprecated = "use transactor directly"]
+    fn request<T: Serialize + DeserializeOwned>(
         &self,
         r#type: MessageRequestType,
         request: T,
@@ -102,65 +134,5 @@ impl EventClient for super::TransactorClient {
         let url = self.base.join(&path)?;
 
         Ok(<HttpClient as JsonClient>::post(&self.http, self, url, envelope).await?)
-    }
-}
-
-#[cfg(feature = "kafka")]
-pub mod kafka {
-    use super::*;
-    use crate::{Config, services::types::WorkspaceUuid};
-    use rdkafka::{
-        ClientConfig,
-        message::{Header, OwnedHeaders},
-        producer::FutureProducer,
-    };
-    use serde_json as json;
-    use std::time::Duration;
-
-    pub struct KafkaEventPublisher {
-        producer: FutureProducer,
-        topic: String,
-    }
-
-    impl KafkaEventPublisher {
-        pub fn new(config: &Config, topic: &str) -> Result<Self> {
-            let producer = ClientConfig::new()
-                .set(
-                    "bootstrap.servers",
-                    config.kafka_bootstrap_servers.join(","),
-                )
-                .set("message.timeout.ms", "5000")
-                .create()?;
-
-            Ok(Self {
-                producer,
-                topic: topic.to_owned(),
-            })
-        }
-
-        pub async fn request<T: Serialize + PartitionKeyProvider>(
-            &self,
-            workspace: WorkspaceUuid,
-            r#type: MessageRequestType,
-            event: T,
-        ) -> Result<()> {
-            let envelope = Envelope::new(r#type, event);
-            let payload = json::to_vec(&envelope)?;
-
-            let message = rdkafka::producer::FutureRecord::to(&self.topic)
-                .payload(&payload)
-                .headers(OwnedHeaders::new().insert(Header {
-                    key: "WorkspaceUuid",
-                    value: Some(&workspace.to_string()),
-                }))
-                .key(envelope.request.partition_key());
-
-            self.producer
-                .send(message, Duration::from_secs(10))
-                .await
-                .map_err(|e| e.0)?;
-
-            Ok(())
-        }
     }
 }
