@@ -11,11 +11,11 @@ pub mod http;
 pub mod ws;
 
 #[allow(async_fn_in_trait)]
-pub trait Backend: Clone + TokenProvider {
+pub trait Backend: Clone + TokenProvider + 'static {
     async fn get<T: DeserializeOwned + Send>(
         &self,
         method: Method,
-        params: impl IntoIterator<Item = (&str, Value)>,
+        params: impl IntoIterator<Item = (String, Value)>,
     ) -> Result<T>;
 
     async fn post<T: DeserializeOwned + Send, Q: Serialize>(

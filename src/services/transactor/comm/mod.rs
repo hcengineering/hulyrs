@@ -16,13 +16,12 @@
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{self as json, Value};
 
+use crate::Result;
 use super::tx::{Doc, Obj, Tx, TxDomainEvent};
 use crate::services::core::Ref;
+use crate::services::JsonClient;
+use crate::services::transactor::backend::http::HttpBackend;
 use crate::services::transactor::document::generate_object_id;
-use crate::{
-    Result,
-    services::{HttpClient, JsonClient},
-};
 
 mod message;
 pub use message::*;
@@ -132,11 +131,11 @@ pub trait EventClient {
     }
 }
 
-impl EventClient for super::TransactorClient {
+impl EventClient for super::TransactorClient<HttpBackend> {
     async fn request_raw<T: Serialize, R: DeserializeOwned>(&self, envelope: &T) -> Result<R> {
-        let path = format!("/api/v1/event/{}", self.workspace);
-        let url = self.base.join(&path)?;
+        let path = format!("/api/v1/event/{}", self.workspace());
+        let url = self.base().join(&path)?;
 
-        <HttpClient as JsonClient>::post(&self.http, self, url, envelope).await
+        <HttpBackend as JsonClient>::post(self.backend(), &self, url, envelope).await
     }
 }

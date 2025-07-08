@@ -1,9 +1,9 @@
 use crate::services::core::WorkspaceUuid;
-use crate::services::core::tx::Tx;
 use crate::services::rpc::util::OkResponse;
 use crate::services::rpc::{HelloRequest, HelloResponse, ReqId, Request, Response};
 use crate::services::transactor::backend::Backend;
 use crate::services::transactor::methods::Method;
+use crate::services::transactor::tx::Tx;
 use crate::services::{Status, TokenProvider};
 use crate::{Error, Result};
 use bytes::Bytes;
@@ -38,6 +38,8 @@ enum Command {
         payload: Value,
         reply_tx: oneshot::Sender<std::result::Result<OkResponse<Value>, Status>>,
     },
+    // TODO: Manual close
+    #[allow(dead_code)]
     Close,
 }
 
@@ -143,7 +145,13 @@ async fn socket_task(
 
                         let hello = serde_json::from_slice::<HelloResponse>(&payload)?;
                         binary_mode = hello.binary;
-                        use_compression = hello.use_compression.unwrap_or(false);
+
+                        // TODO: compression support
+                        #[allow(unused_assignments)]
+                        {
+                            use_compression = hello.use_compression.unwrap_or(false);
+                        }
+
                         let _ = hello_tx.send(Ok(()));
                         continue;
                     }
@@ -152,12 +160,11 @@ async fn socket_task(
                 }
 
                 trace!(target: "ws", ?response, "Full response");
-                if let Some(id) = &response.id {
-                    if let Some(tx) = pending.remove(id) {
+                if let Some(id) = &response.id
+                    && let Some(tx) = pending.remove(id) {
                         let _ = tx.send(response.into_result()).ok();
                         continue;
                     }
-                }
 
                 if response.id.is_none() {
                     if let Some(result) = response.result {
@@ -334,7 +341,7 @@ impl Backend for WsBackend {
     async fn get<T: DeserializeOwned + Send>(
         &self,
         method: Method,
-        params: impl IntoIterator<Item = (&str, Value)>,
+        params: impl IntoIterator<Item = (String, Value)>,
     ) -> Result<T> {
         let param_values = params.into_iter().map(|(_k, v)| v).collect::<Vec<_>>();
 

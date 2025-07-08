@@ -1,13 +1,14 @@
-use crate::{Error, Result};
 use crate::services::core::FindResult;
-use crate::services::core::tx::Tx;
 use crate::services::transactor::TransactorClient;
 use crate::services::transactor::backend::ws::WsBackend;
 use crate::services::transactor::document::FindOptions;
 use crate::services::transactor::methods::Method;
+use crate::services::transactor::tx::Tx;
+use crate::{Error, Result};
 use futures::Stream;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde_json::Value;
 use std::collections::VecDeque;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -66,18 +67,18 @@ impl<
             match self.state {
                 SubscriptionState::Initial => {
                     let client = self.client.clone();
-                    let class = self.class.clone();
-                    let query = self.query.clone();
-                    let options = self.options.clone();
+                    let class = Value::from(self.class.clone());
+                    let query = serde_json::to_value(self.query.clone())?;
+                    let options = serde_json::to_value(self.options.clone())?;
 
                     let handle = task::spawn(async move {
                         client
                             .get(
                                 Method::FindAll,
-                                vec![
-                                    ("class", class.into()),
-                                    ("query", serde_json::to_value(query)?),
-                                    ("options", serde_json::to_value(options)?),
+                                [
+                                    (String::from("class"), class),
+                                    (String::from("query"), query),
+                                    (String::from("options"), options),
                                 ],
                             )
                             .await
@@ -116,7 +117,7 @@ impl<
                 }
                 SubscriptionState::Waiting => match self.tx_rx.try_recv() {
                     Ok(tx) => {
-                        if tx.parent.obj.class != self.class {
+                        if tx.doc.obj.class != self.class {
                             continue;
                         }
 

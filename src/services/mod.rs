@@ -28,20 +28,28 @@ use std::time::Duration;
 use reqwest::{self, Response, Url};
 use reqwest::{StatusCode, header::HeaderValue};
 use reqwest_middleware::ClientBuilder;
-use reqwest_retry::{
-    RetryTransientMiddleware, Retryable, RetryableStrategy, default_on_request_failure,
-    policies::ExponentialBackoff,
-};
 use secrecy::SecretString;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{self as json, Value};
 use tracing::*;
 
 use crate::services::core::{AccountUuid, WorkspaceUuid};
+use crate::services::transactor::backend::http::HttpBackend;
+use crate::services::transactor::backend::ws::{WsBackend, WsBackendOpts};
+use crate::{Error, Result, config::Config};
+use account::AccountClient;
+use jwt::Claims;
+use kvs::KvsClient;
+use transactor::TransactorClient;
+
 #[cfg(feature = "kafka")]
 use crate::services::transactor::kafka;
-use crate::{Error, Result, config::Config};
-use {account::AccountClient, jwt::Claims, kvs::KvsClient, transactor::TransactorClient};
+
+#[cfg(feature = "reqwest_middleware")]
+use reqwest_retry::{
+    RetryTransientMiddleware, Retryable, RetryableStrategy, default_on_request_failure,
+    policies::ExponentialBackoff,
+};
 
 pub trait RequestBuilderExt {
     fn send_ext(self) -> impl Future<Output = Result<Response>>;
@@ -55,11 +63,12 @@ pub trait BasePathProvider {
     fn provide_base_path(&self) -> &Url;
 }
 
-pub trait ForceHttpScheme {
+pub trait ForceScheme {
     fn force_http_scheme(self) -> Url;
+    fn force_ws_scheme(self) -> Url;
 }
 
-impl ForceHttpScheme for Url {
+impl ForceScheme for Url {
     fn force_http_scheme(mut self) -> Url {
         match self.scheme() {
             "ws" => {
@@ -69,6 +78,24 @@ impl ForceHttpScheme for Url {
             "wss" => {
                 self.set_scheme("https").unwrap();
             }
+
+            _ => panic!(),
+        };
+
+        self
+    }
+
+    fn force_ws_scheme(mut self) -> Url {
+        match self.scheme() {
+            "http" => {
+                self.set_scheme("ws").unwrap();
+            }
+
+            "https" => {
+                self.set_scheme("wss").unwrap();
+            }
+
+            "ws" | "wss" => {}
 
             _ => panic!(),
         };
@@ -117,13 +144,13 @@ fn from_value<T: DeserializeOwned>(value: Value) -> Result<T> {
 pub trait JsonClient {
     fn get<U: TokenProvider, R: DeserializeOwned>(
         &self,
-        user: U,
+        user: &U,
         url: Url,
     ) -> impl Future<Output = Result<R>>;
 
     fn post<U: TokenProvider, Q: Serialize, R: DeserializeOwned>(
         &self,
-        user: U,
+        user: &U,
         url: Url,
         body: &Q,
     ) -> impl Future<Output = Result<R>>;
@@ -135,7 +162,7 @@ impl JsonClient for HttpClient {
         skip(self, user, url),
         fields(%url, method = "get", type = "json")
     )]
-    async fn get<U: TokenProvider, R: DeserializeOwned>(&self, user: U, url: Url) -> Result<R> {
+    async fn get<U: TokenProvider, R: DeserializeOwned>(&self, user: &U, url: Url) -> Result<R> {
         trace!("request");
 
         let mut request = self.get(url.clone());
@@ -149,7 +176,7 @@ impl JsonClient for HttpClient {
 
     async fn post<U: TokenProvider, Q: Serialize, R: DeserializeOwned>(
         &self,
-        user: U,
+        user: &U,
         url: Url,
         body: &Q,
     ) -> Result<R> {
@@ -171,7 +198,7 @@ impl JsonClient for HttpClient {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, strum::Display)]
+#[derive(Serialize, Deserialize, Debug, Clone, strum::Display)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum Severity {
     Ok,
@@ -180,11 +207,11 @@ pub enum Severity {
     Error,
 }
 
-#[derive(Deserialize, Debug, Clone, thiserror::Error)]
+#[derive(Serialize, Deserialize, Debug, Clone, thiserror::Error)]
 pub struct Status {
     pub severity: Severity,
     pub code: String,
-    pub params: HashMap<String, String>,
+    pub params: HashMap<String, Value>,
 }
 
 impl std::fmt::Display for Status {
@@ -432,7 +459,11 @@ impl ServiceFactory {
         )
     }
 
-    pub fn new_transactor_client(&self, base: Url, claims: &Claims) -> Result<TransactorClient> {
+    pub fn new_transactor_client(
+        &self,
+        base: Url,
+        claims: &Claims,
+    ) -> Result<TransactorClient<HttpBackend>> {
         TransactorClient::new(
             self.transactor_http.clone(),
             base,
@@ -446,13 +477,43 @@ impl ServiceFactory {
         )
     }
 
+    pub async fn new_transactor_client_ws(
+        &self,
+        base: Url,
+        claims: &Claims,
+        opts: WsBackendOpts,
+    ) -> Result<TransactorClient<WsBackend>> {
+        TransactorClient::new_ws(
+            base,
+            claims.workspace()?,
+            claims.encode(
+                self.config
+                    .token_secret
+                    .as_ref()
+                    .ok_or(Error::Other("NoSecret"))?,
+            )?,
+            opts,
+        )
+        .await
+    }
+
     pub fn new_transactor_client_from_token(
         &self,
         base: Url,
         workspace: WorkspaceUuid,
         token: impl Into<SecretString>,
-    ) -> Result<TransactorClient> {
+    ) -> Result<TransactorClient<HttpBackend>> {
         TransactorClient::new(self.transactor_http.clone(), base, workspace, token)
+    }
+
+    pub async fn new_transactor_client_ws_from_token(
+        &self,
+        base: Url,
+        workspace: WorkspaceUuid,
+        token: impl Into<SecretString>,
+        opts: WsBackendOpts,
+    ) -> Result<TransactorClient<WsBackend>> {
+        TransactorClient::new_ws(base, workspace, token, opts).await
     }
 
     #[cfg(feature = "kafka")]

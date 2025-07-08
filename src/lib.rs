@@ -41,7 +41,7 @@ pub enum Error {
     #[cfg(feature = "kafka")]
     #[error(transparent)]
     Kafka(#[from] rdkafka::error::KafkaError),
-    
+
     #[error("Subscription task panicked")]
     SubscriptionFailed,
 

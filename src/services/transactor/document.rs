@@ -26,7 +26,7 @@ use super::{
 };
 
 use crate::services::core::ser::Data;
-use crate::services::core::{Account, PersonId, Ref, Timestamp};
+use crate::services::core::{Account, FindResult, PersonId, Ref, Timestamp};
 use crate::services::transactor::backend::Backend;
 use crate::services::transactor::methods::Method;
 use crate::{Error, Result};
@@ -242,9 +242,9 @@ impl<B: Backend> DocumentClient for super::TransactorClient<B> {
             .get(
                 Method::FindAll,
                 [
-                    ("class", class.into()),
-                    ("query", json::to_value(&query)?),
-                    ("options", json::to_value(&options)?),
+                    (String::from("class"), class.into()),
+                    (String::from("query"), json::to_value(query)?),
+                    (String::from("options"), json::to_value(options)?),
                 ],
             )
             .await?;
@@ -330,12 +330,5 @@ impl<B: Backend> DocumentClient for super::TransactorClient<B> {
             .value
             .into_iter()
             .next())
-    }
-
-    async fn tx<R: DeserializeOwned + Send, T>(&self, tx: T) -> Result<R>
-    where
-        T: Transaction,
-    {
-        self.post(Method::Tx, &tx.transaction()).await
     }
 }
