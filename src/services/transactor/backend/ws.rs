@@ -1,23 +1,27 @@
-use crate::services::Status;
+use crate::services::core::WorkspaceUuid;
+use crate::services::core::tx::Tx;
 use crate::services::rpc::util::OkResponse;
 use crate::services::rpc::{HelloRequest, HelloResponse, ReqId, Request, Response};
 use crate::services::transactor::backend::Backend;
 use crate::services::transactor::methods::Method;
+use crate::services::{Status, TokenProvider};
 use crate::{Error, Result};
 use bytes::Bytes;
 use futures::stream::{SplitSink, SplitStream};
 use futures::{SinkExt, StreamExt};
 use reqwest::Client;
 use reqwest_websocket::{Message, RequestBuilderExt, WebSocket};
+use secrecy::{ExposeSecret, SecretString};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::time::Duration;
 use tokio::sync::mpsc::{self, UnboundedSender};
-use tokio::sync::oneshot;
+use tokio::sync::{broadcast, oneshot};
 use tokio::task::JoinHandle;
 use tokio_with_wasm::alias as tokio;
 use tracing::{error, trace, warn};
@@ -43,6 +47,7 @@ async fn socket_task(
     mut cmd_rx: mpsc::UnboundedReceiver<Command>,
     opts: WsBackendOpts,
     hello_tx: oneshot::Sender<Result<()>>,
+    tx_broadcast: broadcast::Sender<Tx>,
 ) -> Result<()> {
     let mut pending =
         HashMap::<ReqId, oneshot::Sender<std::result::Result<OkResponse<Value>, Status>>>::new();
@@ -129,7 +134,7 @@ async fn socket_task(
                         error!(target: "ws", ?result);
                         continue;
                     }
-                    
+
                     if response.result.is_some_and(|result| result == "hello") {
                         // Just ignore any extra HELLOs
                         let Some(hello_tx) = hello_tx.take() else {
@@ -142,7 +147,7 @@ async fn socket_task(
                         let _ = hello_tx.send(Ok(()));
                         continue;
                     }
-                    
+
                     continue;
                 }
 
@@ -151,6 +156,21 @@ async fn socket_task(
                     if let Some(tx) = pending.remove(id) {
                         let _ = tx.send(response.into_result()).ok();
                         continue;
+                    }
+                }
+
+                if response.id.is_none() {
+                    if let Some(result) = response.result {
+                        match serde_json::from_value::<Vec<Tx>>(result) {
+                            Ok(tx_array) => {
+                                for tx in tx_array {
+                                    let _ = tx_broadcast.send(tx);
+                                }
+                            }
+                            Err(e) => {
+                                warn!(target: "ws", "Failed to deserialize transaction array: {}", e);
+                            }
+                        }
                     }
                 }
             }
@@ -210,22 +230,34 @@ impl Default for WsBackendOpts {
     }
 }
 
-pub struct WsBackend {
+struct WsBackendInner {
+    workspace: WorkspaceUuid,
+    token: SecretString,
+
     cmd_tx: UnboundedSender<Command>,
     base: Url,
+    tx_broadcast: broadcast::Sender<Tx>,
     _handle: JoinHandle<()>,
+}
+
+#[derive(Clone)]
+pub struct WsBackend {
+    inner: Arc<WsBackendInner>,
 }
 
 impl WsBackend {
     pub(in crate::services::transactor) async fn connect(
         base: Url,
-        token: &str,
+        workspace: WorkspaceUuid,
+        token: impl Into<SecretString>,
         opts: WsBackendOpts,
     ) -> Result<Self> {
-        let url = base.join(token)?;
+        let token = token.into();
+
+        let url = base.join(token.expose_secret())?;
         let resp = Client::default()
             .get(url)
-            .bearer_auth(token)
+            .bearer_auth(token.expose_secret())
             .upgrade()
             .send()
             .await?;
@@ -234,9 +266,14 @@ impl WsBackend {
         let (write, read) = ws.split();
         let (hello_tx, hello_rx) = oneshot::channel();
 
+        let (tx_broadcast, _) = broadcast::channel::<Tx>(128);
+
+        let tx_broadcast_clone = tx_broadcast.clone();
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel::<Command>();
         let socket_handle = async move {
-            if let Err(e) = socket_task(write, read, cmd_rx, opts, hello_tx).await {
+            if let Err(e) =
+                socket_task(write, read, cmd_rx, opts, hello_tx, tx_broadcast_clone).await
+            {
                 warn!(target:"ws", ?e, "socket task crashed");
             }
         };
@@ -263,10 +300,19 @@ impl WsBackend {
         }
 
         Ok(Self {
-            base,
-            cmd_tx,
-            _handle: handle,
+            inner: Arc::new(WsBackendInner {
+                workspace,
+                base,
+                cmd_tx,
+                tx_broadcast,
+                _handle: handle,
+                token,
+            }),
         })
+    }
+
+    pub(in crate::services::transactor) fn tx_stream(&self) -> broadcast::Receiver<Tx> {
+        self.inner.tx_broadcast.subscribe()
     }
 }
 
@@ -275,6 +321,12 @@ fn encode_message<Q: Serialize>(value: &Q, binary_mode: bool) -> Result<Message>
         Ok(Message::Binary(serde_json::to_vec(value)?.into()))
     } else {
         Ok(Message::Text(serde_json::to_string(value)?))
+    }
+}
+
+impl TokenProvider for WsBackend {
+    fn provide_token(&self) -> Option<&str> {
+        Some(self.inner.token.expose_secret())
     }
 }
 
@@ -293,7 +345,7 @@ impl Backend for WsBackend {
             time: None,
         };
 
-        send_and_wait(&self.cmd_tx, payload).await
+        send_and_wait(&self.inner.cmd_tx, payload).await
     }
 
     async fn post<T: DeserializeOwned + Send, Q: Serialize>(
@@ -312,11 +364,15 @@ impl Backend for WsBackend {
             time: None,
         };
 
-        send_and_wait(&self.cmd_tx, payload).await
+        send_and_wait(&self.inner.cmd_tx, payload).await
     }
 
     fn base(&self) -> &Url {
-        &self.base
+        &self.inner.base
+    }
+
+    fn workspace(&self) -> WorkspaceUuid {
+        self.inner.workspace
     }
 }
 

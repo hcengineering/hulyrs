@@ -1,4 +1,6 @@
 use crate::Result;
+use crate::services::TokenProvider;
+use crate::services::core::WorkspaceUuid;
 use crate::services::transactor::methods::Method;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -9,7 +11,7 @@ pub mod http;
 pub mod ws;
 
 #[allow(async_fn_in_trait)]
-pub trait Backend {
+pub trait Backend: Clone + TokenProvider {
     async fn get<T: DeserializeOwned + Send>(
         &self,
         method: Method,
@@ -23,4 +25,6 @@ pub trait Backend {
     ) -> Result<T>;
 
     fn base(&self) -> &Url;
+
+    fn workspace(&self) -> WorkspaceUuid;
 }
