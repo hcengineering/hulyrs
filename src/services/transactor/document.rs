@@ -23,6 +23,7 @@ use super::{
     tx::{Doc, Obj, Tx, TxCUD, TxCreateDoc, TxRemoveDoc},
 };
 
+use crate::services::core::ser::Data;
 use crate::{
     Error, Result,
     services::{
@@ -83,7 +84,7 @@ impl<T: Serialize> Transaction for CreateDocument<T> {
                 collection: None,
             },
 
-            attributes: self.attributes,
+            attributes: Data::new(self.attributes),
         };
 
         Ok(json::to_value(&doc)?)

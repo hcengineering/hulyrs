@@ -13,6 +13,8 @@
 // limitations under the License.
 //
 
+pub(crate) mod ser;
+
 use crate::services::transactor::tx::Doc;
 use crate::services::types::AccountUuid;
 use serde::{Deserialize, Serialize};
