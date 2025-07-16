@@ -13,9 +13,9 @@
 // limitations under the License.
 //
 
-use serde::{Deserialize, Serialize};
-
+use crate::services::core::ser::Data;
 use crate::services::types::{PersonId, Ref, Timestamp};
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Obj {
@@ -74,12 +74,12 @@ pub struct TxCUD {
     pub collection: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct TxCreateDoc<T> {
     #[serde(flatten)]
     pub txcud: TxCUD,
-    pub attributes: T,
+    pub attributes: Data<T>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
