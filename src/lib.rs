@@ -44,6 +44,8 @@ pub enum Error {
 
     #[error("Subscription task panicked")]
     SubscriptionFailed,
+    #[error("Subscription task lagged and was forcibly disconnected")]
+    SubscriptionLagged,
 
     #[error(transparent)]
     Url(#[from] url::ParseError),

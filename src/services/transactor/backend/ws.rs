@@ -3,7 +3,6 @@ use crate::services::rpc::util::OkResponse;
 use crate::services::rpc::{HelloRequest, HelloResponse, ReqId, Request, Response};
 use crate::services::transactor::backend::Backend;
 use crate::services::transactor::methods::Method;
-use crate::services::transactor::tx::Tx;
 use crate::services::{Status, TokenProvider};
 use crate::{Error, Result};
 use bytes::Bytes;
@@ -49,7 +48,7 @@ async fn socket_task(
     mut cmd_rx: mpsc::UnboundedReceiver<Command>,
     opts: WsBackendOpts,
     hello_tx: oneshot::Sender<Result<()>>,
-    tx_broadcast: broadcast::Sender<Tx>,
+    tx_broadcast: broadcast::Sender<Value>,
 ) -> Result<()> {
     let mut pending =
         HashMap::<ReqId, oneshot::Sender<std::result::Result<OkResponse<Value>, Status>>>::new();
@@ -166,17 +165,15 @@ async fn socket_task(
                         continue;
                     }
 
-                if response.id.is_none() {
-                    if let Some(result) = response.result {
-                        match serde_json::from_value::<Vec<Tx>>(result) {
-                            Ok(tx_array) => {
-                                for tx in tx_array {
-                                    let _ = tx_broadcast.send(tx);
-                                }
+                if let Some(result) = response.result {
+                    match serde_json::from_value::<Vec<Value>>(result) {
+                        Ok(tx_array) => {
+                            for tx in tx_array {
+                                let _ = tx_broadcast.send(tx);
                             }
-                            Err(e) => {
-                                warn!(target: "ws", "Failed to deserialize transaction array: {}", e);
-                            }
+                        }
+                        Err(e) => {
+                            warn!(target: "ws", "Failed to deserialize transaction array: {}", e);
                         }
                     }
                 }
@@ -243,7 +240,7 @@ struct WsBackendInner {
 
     cmd_tx: UnboundedSender<Command>,
     base: Url,
-    tx_broadcast: broadcast::Sender<Tx>,
+    tx_broadcast: broadcast::Sender<Value>,
     _handle: JoinHandle<()>,
 }
 
@@ -273,7 +270,7 @@ impl WsBackend {
         let (write, read) = ws.split();
         let (hello_tx, hello_rx) = oneshot::channel();
 
-        let (tx_broadcast, _) = broadcast::channel::<Tx>(128);
+        let (tx_broadcast, _) = broadcast::channel::<Value>(128);
 
         let tx_broadcast_clone = tx_broadcast.clone();
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel::<Command>();
@@ -318,8 +315,10 @@ impl WsBackend {
         })
     }
 
-    pub(in crate::services::transactor) fn tx_stream(&self) -> broadcast::Receiver<Tx> {
-        self.inner.tx_broadcast.subscribe()
+    pub(in crate::services::transactor) fn tx_stream(
+        &self,
+    ) -> tokio_stream::wrappers::BroadcastStream<Value> {
+        self.inner.tx_broadcast.subscribe().into()
     }
 }
 

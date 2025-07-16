@@ -15,6 +15,7 @@
 
 pub mod account;
 pub mod core;
+pub mod event;
 pub mod jwt;
 pub mod kvs;
 mod rpc;

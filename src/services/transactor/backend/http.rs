@@ -1,5 +1,6 @@
 use crate::Result;
 use crate::services::core::WorkspaceUuid;
+use crate::services::transactor::backend::Backend;
 use crate::services::transactor::methods::Method;
 use crate::services::{JsonClient, TokenProvider};
 use reqwest_middleware::ClientWithMiddleware;
@@ -9,7 +10,6 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::sync::Arc;
 use url::Url;
-use crate::services::transactor::backend::Backend;
 
 pub type HttpClient = ClientWithMiddleware;
 
@@ -104,7 +104,8 @@ impl super::Backend for HttpBackend {
         method: Method,
         body: &Q,
     ) -> Result<T> {
-        self.post_path(&format!("/api/v1/{}", method.kebab()), body).await
+        self.post_path(&format!("/api/v1/{}", method.kebab()), body)
+            .await
     }
 
     fn base(&self) -> &Url {
