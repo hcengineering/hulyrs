@@ -1,16 +1,18 @@
 use serde::ser::{Error as _, Impossible, SerializeMap};
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
 use serde_json::Value;
 use std::fmt::{Debug, Display, Formatter};
 
 /// Serializer that filters out keys from `T` that collide with [`Doc`]
 ///
 /// [`Doc`]: crate::services::core::Doc
+#[derive(Deserialize)]
 pub struct Data<T> {
-    value: T,
+    #[serde(flatten)]
+    pub value: T,
 }
 
-impl<T: Serialize> Data<T> {
+impl<T> Data<T> {
     const IGNORED_KEYS: &'static [&'static str] = &[
         "_id",
         "space",
