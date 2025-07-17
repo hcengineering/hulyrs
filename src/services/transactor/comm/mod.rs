@@ -37,6 +37,8 @@ pub enum MessageRequestType {
     BlobPatch,
     LinkPreviewPatch,
     ThreadPatch,
+    CreateMessagesGroup,
+    RemoveMessagesGroup,
 
     // Label
     CreateLabel,
