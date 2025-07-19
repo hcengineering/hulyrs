@@ -197,8 +197,7 @@ pub mod kafka {
                     .and_then(|headers| {
                         headers
                             .iter()
-                            .filter(|h| (h.key == "workspace" || h.key == "WorkspaceUuid"))
-                            .next()
+                            .find(|h| h.key == "workspace" || h.key == "WorkspaceUuid")
                     })
                     .and_then(|header| header.value)
                     .map(String::from_utf8_lossy);
