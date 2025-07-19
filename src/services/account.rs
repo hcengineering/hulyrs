@@ -263,6 +263,14 @@ pub struct EnsurePersonResult {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct CreateWorkspaceParams {
+    pub workspace_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub region: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct SignUpParams {
     pub email: String,
     pub password: String,
@@ -403,6 +411,13 @@ impl AccountClient {
 
     pub async fn delete_integration(&self, params: &IntegrationKey) -> Result<()> {
         self.http.service(self, "deleteIntegration", params).await
+    }
+
+    pub async fn create_workspace(
+        &self,
+        params: &CreateWorkspaceParams,
+    ) -> Result<WorkspaceLoginInfo> {
+        self.http.service(self, "createWorkspace", params).await
     }
 
     pub async fn sign_up(&self, params: &SignUpParams) -> Result<LoginInfo> {
