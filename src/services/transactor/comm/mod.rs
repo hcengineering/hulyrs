@@ -106,6 +106,7 @@ pub trait EventClient {
     ) -> impl Future<Output = Result<R>>;
 
     #[deprecated = "use transactor directly"]
+    #[allow(deprecated)]
     fn request_for_result<T: Serialize + DeserializeOwned, R: DeserializeOwned>(
         &self,
         r#type: MessageRequestType,
@@ -115,6 +116,7 @@ pub trait EventClient {
     }
 
     #[deprecated = "use transactor directly"]
+    #[allow(deprecated)]
     fn request<T: Serialize + DeserializeOwned>(
         &self,
         r#type: MessageRequestType,
