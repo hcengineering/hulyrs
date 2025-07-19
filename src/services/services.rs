@@ -16,7 +16,6 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use rdkafka::consumer::StreamConsumer;
 use reqwest::{self, Response, Url};
 use reqwest::{StatusCode, header::HeaderValue};
 use reqwest_middleware::ClientBuilder;
@@ -166,7 +165,7 @@ impl JsonClient for HttpClient {
 
         trace!(type="json", %url, method="post", %response, "http response");
 
-        Ok(from_value(response)?)
+        from_value(response)
     }
 }
 
