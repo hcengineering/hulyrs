@@ -30,12 +30,16 @@ pub use wasmtimer::{std::Instant, tokio::sleep, tokio::timeout};
 #[cfg(not(target_family = "wasm"))]
 use {std::time::Instant, tokio::time::sleep, tokio::time::timeout};
 
+const PING: &str = "ping";
 const PONG: &str = "pong!";
 
 enum Command {
     Call {
         payload: Value,
         reply_tx: oneshot::Sender<std::result::Result<OkResponse<Value>, Status>>,
+    },
+    Ping {
+        reply_tx: oneshot::Sender<std::result::Result<(), Status>>,
     },
     // TODO: Manual close
     #[allow(dead_code)]
@@ -50,6 +54,7 @@ async fn socket_task(
     hello_tx: oneshot::Sender<Result<()>>,
     tx_broadcast: broadcast::Sender<Value>,
 ) -> Result<()> {
+    let mut pending_ping = None;
     let mut pending =
         HashMap::<ReqId, oneshot::Sender<std::result::Result<OkResponse<Value>, Status>>>::new();
     let mut binary_mode = opts.binary;
@@ -79,7 +84,18 @@ async fn socket_task(
 
                     pending.insert(id.into(), reply_tx);
                     write.send(encode_message(&payload, binary_mode)?).await?;
-                }
+                },
+                Command::Ping { reply_tx } => {
+                    let payload = Request {
+                        id: None,
+                        method: Method::Ping.camel().to_string(),
+                        params: Vec::<()>::new(),
+                        time: None,
+                    };
+
+                    write.send(encode_message(&payload, binary_mode)?).await?;
+                    pending_ping = Some(reply_tx);
+                },
                 Command::Close => break,
             },
 
@@ -114,18 +130,33 @@ async fn socket_task(
 
                         payload = resp;
                     },
-                    Message::Ping(payload) => {
-                        trace!(target: "ws", ?payload, "Received ping, replying...");
-                        write.send(encode_message(&Method::Ping.camel(), binary_mode)?).await?;
-                        continue;
+                    Message::Ping(request) => {
+                        response = Response {
+                            result: Some(Value::String(PONG.to_string())),
+                            ..Default::default()
+                        };
+
+                        payload = request;
                     },
                     Message::Close { .. } => break,
                     _ => continue,
                 }
 
-                if response.result.as_ref().is_some_and(|v| v == "ping") {
-                    trace!(target: "ws", ?payload, "Received ping, replying...");
-                    write.send(encode_message(&Method::Ping.camel(), binary_mode)?).await?;
+                if response.result.as_ref().is_some_and(|v| v == PING) {
+                    trace!(target: "ws", "Received ping, replying...");
+                    if binary_mode {
+                        write.send(Message::Binary(PONG.into())).await?;
+                    } else {
+                        write.send(Message::Text(PONG.into())).await?;
+                    }
+                    continue;
+                }
+
+                if response.result.as_ref().is_some_and(|v| v == PONG) {
+                    if let Some(pong_tx) = pending_ping.take() {
+                        let _ = pong_tx.send(Ok(()));
+                    }
+
                     continue;
                 }
 
@@ -165,6 +196,7 @@ async fn socket_task(
                         continue;
                     }
 
+
                 if let Some(result) = response.result {
                     match serde_json::from_value::<Vec<Value>>(result) {
                         Ok(tx_array) => {
@@ -196,24 +228,28 @@ async fn ping_task(cmd_tx: UnboundedSender<Command>) -> Result<()> {
         let Some(ping_response_time) = last_ping_response.take() else {
             trace!(target: "ws", "Pinging server");
 
-            let payload = Request {
-                id: None,
-                method: Method::Ping.camel().to_string(),
-                params: Vec::<()>::new(),
-                time: None,
+            let (tx, rx) = oneshot::channel();
+            cmd_tx.send(Command::Ping { reply_tx: tx }).ok();
+
+            let Ok(res) = rx.await else {
+                error!("Ping channel closed unexpectedly, closing socket");
+                break;
             };
 
-            let _response: Value = send_and_wait(&cmd_tx, payload).await?;
+            res?;
             last_ping_response = Some(Instant::now());
             continue;
         };
 
         if ping_response_time.elapsed() > HANG_TIMEOUT {
             error!("No ping response from server, closing socket");
+            break;
         }
 
         last_ping_response = None;
     }
+
+    Ok(())
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -359,14 +395,10 @@ impl Backend for WsBackend {
         method: Method,
         body: &Q,
     ) -> Result<T> {
-        let Value::Object(body_json) = serde_json::to_value(body)? else {
-            return Err(Error::Other("Expected a JSON object"));
-        };
-
         let payload = Request {
             id: None,
             method: method.camel().to_string(),
-            params: body_json.values().collect(),
+            params: vec![serde_json::to_value(body)?],
             time: None,
         };
 
