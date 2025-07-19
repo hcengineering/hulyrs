@@ -106,15 +106,17 @@ pub trait EventClient {
     ) -> impl Future<Output = Result<R>>;
 
     #[deprecated = "use transactor directly"]
+    #[allow(deprecated)]
     fn request_for_result<T: Serialize + DeserializeOwned, R: DeserializeOwned>(
         &self,
         r#type: MessageRequestType,
         request: T,
     ) -> impl Future<Output = Result<R>> {
-        async { Ok(self.request_raw(&Envelope::new(r#type, request)).await?) }
+        async { self.request_raw(&Envelope::new(r#type, request)).await }
     }
 
     #[deprecated = "use transactor directly"]
+    #[allow(deprecated)]
     fn request<T: Serialize + DeserializeOwned>(
         &self,
         r#type: MessageRequestType,
@@ -133,6 +135,6 @@ impl EventClient for super::TransactorClient {
         let path = format!("/api/v1/event/{}", self.workspace);
         let url = self.base.join(&path)?;
 
-        Ok(<HttpClient as JsonClient>::post(&self.http, self, url, envelope).await?)
+        <HttpClient as JsonClient>::post(&self.http, self, url, envelope).await
     }
 }
