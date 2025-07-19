@@ -16,14 +16,15 @@
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{self as json, Value};
 
+use super::tx::{Doc, Obj, Tx, TxDomainEvent};
+use crate::services::core::Ref;
+use crate::services::transactor::document::generate_object_id;
 use crate::{
     Result,
     services::{HttpClient, JsonClient},
 };
 
 mod message;
-use super::tx::{Doc, Obj, Tx, TxDomainEvent};
-use crate::services::core::Ref;
 pub use message::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -81,7 +82,7 @@ impl<T: Serialize> super::Transaction for Envelope<T> {
                         class: Ref::from(crate::services::core::class::TxDomainEvent),
                     },
 
-                    id: ksuid::Ksuid::generate().to_hex(),
+                    id: generate_object_id(),
                     space: "core:space:Tx".to_string(),
 
                     modified_on: None,
