@@ -215,7 +215,7 @@ pub mod kafka {
             loop {
                 let message = self.recv().await.ok();
 
-                println!("{:?}", message);
+                println!("{message:?}");
 
                 match inner(message) {
                     Ok(transaction) => break transaction,
