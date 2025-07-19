@@ -23,9 +23,10 @@ pub mod document;
 pub mod person;
 pub mod tx;
 
+use crate::services::core::WorkspaceUuid;
 use crate::{
-    Error, Result,
-    services::{ForceHttpScheme, HttpClient, JsonClient, types::WorkspaceUuid},
+    Result,
+    services::{ForceHttpScheme, HttpClient, JsonClient},
 };
 
 pub trait Transaction {
@@ -98,7 +99,7 @@ impl TransactorClient {
 #[cfg(feature = "kafka")]
 pub mod kafka {
     use super::*;
-    use crate::{Config, services::types::WorkspaceUuid};
+    use crate::{Config, Error, services::core::WorkspaceUuid};
     use rdkafka::{
         ClientConfig, Message,
         consumer::{ConsumerContext, StreamConsumer},

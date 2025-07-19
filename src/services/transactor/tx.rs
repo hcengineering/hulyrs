@@ -14,7 +14,7 @@
 //
 
 use crate::services::core::ser::Data;
-use crate::services::types::{PersonId, Ref, Timestamp};
+use crate::services::core::{PersonId, Ref, Timestamp};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]

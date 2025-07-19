@@ -18,7 +18,6 @@ pub mod core;
 pub mod jwt;
 pub mod kvs;
 pub mod transactor;
-pub mod types;
 
 pub use reqwest_middleware::{ClientWithMiddleware as HttpClient, RequestBuilder};
 
@@ -37,17 +36,11 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{self as json, Value};
 use tracing::*;
 
-use crate::{Error, Result, config::Config};
-use {
-    account::AccountClient,
-    jwt::Claims,
-    kvs::KvsClient,
-    transactor::TransactorClient,
-    types::{AccountUuid, WorkspaceUuid},
-};
-
+use crate::services::core::{AccountUuid, WorkspaceUuid};
 #[cfg(feature = "kafka")]
 use crate::services::transactor::kafka;
+use crate::{Error, Result, config::Config};
+use {account::AccountClient, jwt::Claims, kvs::KvsClient, transactor::TransactorClient};
 
 pub trait RequestBuilderExt {
     fn send_ext(self) -> impl Future<Output = Result<Response>>;

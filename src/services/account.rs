@@ -21,9 +21,16 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::config::Config;
+use crate::services::core::{
+    AccountUuid, PersonId, PersonUuid, Timestamp, WorkspaceDataId, WorkspaceUuid,
+};
 use crate::{
     Error, Result,
-    services::{ServiceClient, jwt::Claims, types::*},
+    services::{
+        ServiceClient,
+        core::{SocialId, SocialIdType},
+        jwt::Claims,
+    },
 };
 
 #[derive(serde::Deserialize, Debug, Clone)]
