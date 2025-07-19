@@ -33,11 +33,19 @@ pub enum Error {
     Reqwest(#[from] reqwest::Error),
 
     #[error(transparent)]
+    Ws(#[from] reqwest_websocket::Error),
+
+    #[error(transparent)]
     ReqwestMiddleware(#[from] reqwest_middleware::Error),
 
     #[cfg(feature = "kafka")]
     #[error(transparent)]
     Kafka(#[from] rdkafka::error::KafkaError),
+
+    #[error("Subscription task panicked")]
+    SubscriptionFailed,
+    #[error("Subscription task lagged and was forcibly disconnected")]
+    SubscriptionLagged,
 
     #[error(transparent)]
     Url(#[from] url::ParseError),

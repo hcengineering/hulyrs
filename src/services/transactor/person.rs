@@ -16,10 +16,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::services::core::{PersonId, PersonUuid};
-use crate::{
-    Result,
-    services::{HttpClient, JsonClient, core::SocialIdType},
-};
+use crate::services::transactor::backend::Backend;
+use crate::services::transactor::methods::Method;
+use crate::{Result, services::core::SocialIdType};
 
 #[derive(Serialize, Debug, derive_builder::Builder)]
 #[serde(rename_all = "camelCase")]
@@ -49,11 +48,8 @@ pub trait EnsurePerson {
     ) -> impl Future<Output = Result<EnsurePersonResponse>>;
 }
 
-impl EnsurePerson for super::TransactorClient {
+impl<B: Backend> EnsurePerson for super::TransactorClient<B> {
     async fn ensure_person(&self, request: &EnsurePersonRequest) -> Result<EnsurePersonResponse> {
-        let path = format!("/api/v1/ensure-person/{}", self.workspace);
-        let url = self.base.join(&path)?;
-
-        <HttpClient as JsonClient>::post(&self.http, self, url, request).await
+        self.post(Method::EnsurePerson, request).await
     }
 }
