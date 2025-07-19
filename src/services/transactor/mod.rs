@@ -13,12 +13,12 @@
 //
 
 use crate::Result;
-use crate::services::ForceScheme;
 use crate::services::core::WorkspaceUuid;
 use crate::services::transactor::backend::Backend;
 use crate::services::transactor::backend::http::{HttpBackend, HttpClient};
 use crate::services::transactor::backend::ws::{WsBackend, WsBackendOpts};
 use crate::services::transactor::methods::Method;
+use crate::services::{ForceScheme, JsonClient};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;

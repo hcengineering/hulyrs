@@ -15,6 +15,7 @@
 
 use crate::services::core::ser::Data;
 use crate::services::core::{PersonId, Ref, Timestamp};
+use crate::services::event::{Class, Event};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
