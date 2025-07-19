@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-use std::collections::HashMap;
-
+use chrono::Utc;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{self as json, Value};
+use std::collections::HashMap;
+use std::sync::LazyLock;
+use std::sync::atomic::AtomicUsize;
 
 use super::{
     Transaction,
@@ -30,16 +32,35 @@ use crate::{
     services::{HttpClient, JsonClient},
 };
 
+static COUNT: AtomicUsize = AtomicUsize::new(0);
+static RANDOM: LazyLock<String> = LazyLock::new(|| {
+    format!(
+        "{:6X}{:4X}",
+        rand::random::<u32>().wrapping_mul(1 << 24),
+        rand::random::<u32>().wrapping_mul(1 << 16)
+    )
+});
+
+pub(crate) fn generate_object_id() -> Ref {
+    let count = COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let mut timestamp = Utc::now().timestamp() / 1000;
+    if timestamp < 0 {
+        timestamp = 0;
+    }
+
+    format!("{timestamp:8X}{}{count}", &*RANDOM)
+}
+
 #[derive(Default, Debug, derive_builder::Builder, Clone)]
 pub struct CreateDocument<T: Serialize> {
-    #[builder(setter(into))]
+    #[builder(setter(into), default = generate_object_id())]
     object_id: Ref,
 
     #[builder(setter(into))]
     object_class: String,
 
-    #[builder(setter(into, strip_option), default)]
-    modified_on: Option<Timestamp>,
+    #[builder(setter(into), default = Utc::now())]
+    modified_on: Timestamp,
 
     #[builder(setter(into, strip_option), default)]
     modified_by: Option<PersonId>,
@@ -66,12 +87,12 @@ impl<T: Serialize> Transaction for CreateDocument<T> {
                             class: Ref::from(crate::services::core::class::TxCreateDoc),
                         },
 
-                        id: ksuid::Ksuid::generate().to_hex(),
-                        modified_on: self.modified_on,
+                        id: generate_object_id(),
+                        modified_on: Some(self.modified_on),
                         modified_by: self.modified_by,
                         created_on: self.created_on,
                         created_by: self.created_by,
-                        space: "core:space:Tx".to_string(),
+                        space: Ref::from(crate::services::core::space::Tx),
                     },
                     object_space: self.object_space,
                 },
@@ -123,12 +144,12 @@ impl Transaction for RemoveDocument {
                             class: Ref::from(crate::services::core::class::TxRemoveDoc),
                         },
 
-                        id: ksuid::Ksuid::generate().to_hex(),
+                        id: generate_object_id(),
                         modified_on: self.modified_on,
                         modified_by: self.modified_by,
                         created_on: self.created_on,
                         created_by: self.created_by,
-                        space: "core:space:Tx".to_string(),
+                        space: Ref::from(crate::services::core::space::Tx),
                     },
                     object_space: self.object_space,
                 },
