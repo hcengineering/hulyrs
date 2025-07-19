@@ -24,12 +24,10 @@ use super::{
 };
 
 use crate::services::core::ser::Data;
+use crate::services::core::{Account, PersonId, Ref, Timestamp};
 use crate::{
     Error, Result,
-    services::{
-        HttpClient, JsonClient,
-        types::{Account, PersonId, Ref, Timestamp},
-    },
+    services::{HttpClient, JsonClient},
 };
 
 #[derive(Default, Debug, derive_builder::Builder, Clone)]
@@ -65,7 +63,7 @@ impl<T: Serialize> Transaction for CreateDocument<T> {
                 tx: Tx {
                     doc: Doc {
                         obj: Obj {
-                            class: "core:class:TxCreateDoc".to_string(),
+                            class: Ref::from(crate::services::core::class::TxCreateDoc),
                         },
 
                         id: ksuid::Ksuid::generate().to_hex(),
@@ -122,7 +120,7 @@ impl Transaction for RemoveDocument {
                 tx: Tx {
                     doc: Doc {
                         obj: Obj {
-                            class: "core:class:TxRemoveDoc".to_string(),
+                            class: Ref::from(crate::services::core::class::TxRemoveDoc),
                         },
 
                         id: ksuid::Ksuid::generate().to_hex(),

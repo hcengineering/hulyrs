@@ -23,6 +23,7 @@ use crate::{
 
 mod message;
 use super::tx::{Doc, Obj, Tx, TxDomainEvent};
+use crate::services::core::Ref;
 pub use message::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -77,7 +78,7 @@ impl<T: Serialize> super::Transaction for Envelope<T> {
             tx: Tx {
                 doc: Doc {
                     obj: Obj {
-                        class: "core:class:TxDomainEvent".to_string(),
+                        class: Ref::from(crate::services::core::class::TxDomainEvent),
                     },
 
                     id: ksuid::Ksuid::generate().to_hex(),
