@@ -331,7 +331,6 @@ impl ServiceFactory {
             struct TransactorStrategy;
 
             impl RetryableStrategy for TransactorStrategy {
-                #[tracing::instrument(level = "debug", skip_all)]
                 fn handle(
                     &self,
                     res: &std::result::Result<reqwest::Response, reqwest_middleware::Error>,
