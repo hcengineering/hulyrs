@@ -89,12 +89,24 @@ impl super::Backend for HttpBackend {
         method: Method,
         params: impl IntoIterator<Item = (String, Value)>,
     ) -> Result<T> {
-        let mut url = self.base().join(&format!("/api/v1/{}", method.kebab()))?;
-        let mut qp = url.query_pairs_mut();
-        for (name, value) in params {
-            qp.append_pair(&name, &value.to_string());
-        }
-        drop(qp);
+        let url = {
+            let mut url = self.base().join(&format!("/api/v1/{}", method.kebab(),))?;
+            let mut qp = url.query_pairs_mut();
+
+            for (name, value) in params {
+                match value {
+                    Value::String(s) => {
+                        qp.append_pair(&name, &s);
+                    }
+                    _ => {
+                        qp.append_pair(&name, &value.to_string());
+                    }
+                }
+            }
+            drop(qp);
+
+            url
+        };
 
         <crate::services::HttpClient as JsonClient>::get(&self.inner.client, self, url).await
     }
