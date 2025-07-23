@@ -41,15 +41,6 @@ impl HttpBackend {
             }),
         }
     }
-
-    pub(crate) async fn post_path<T: DeserializeOwned + Send, Q: Serialize>(
-        &self,
-        path: &str,
-        body: &Q,
-    ) -> Result<T> {
-        let url = self.base().join(path)?;
-        <crate::services::HttpClient as JsonClient>::post(&self.inner.client, self, url, body).await
-    }
 }
 
 impl JsonClient for HttpBackend {
@@ -83,6 +74,16 @@ impl TokenProvider for &'_ HttpBackend {
     }
 }
 
+trait HttpMethod {
+    fn path(&self, workspace: WorkspaceUuid) -> String;
+}
+
+impl HttpMethod for Method {
+    fn path(&self, workspace: WorkspaceUuid) -> String {
+        format!("/api/v1/{}/{}", self.kebab(), workspace)
+    }
+}
+
 impl super::Backend for HttpBackend {
     async fn get<T: DeserializeOwned + Send>(
         &self,
@@ -90,7 +91,7 @@ impl super::Backend for HttpBackend {
         params: impl IntoIterator<Item = (String, Value)>,
     ) -> Result<T> {
         let url = {
-            let mut url = self.base().join(&format!("/api/v1/{}", method.kebab(),))?;
+            let mut url = self.base().join(&method.path(self.inner.workspace))?;
             let mut qp = url.query_pairs_mut();
 
             for (name, value) in params {
@@ -116,8 +117,8 @@ impl super::Backend for HttpBackend {
         method: Method,
         body: &Q,
     ) -> Result<T> {
-        self.post_path(&format!("/api/v1/{}", method.kebab()), body)
-            .await
+        let url = self.base().join(&method.path(self.inner.workspace))?;
+        <crate::services::HttpClient as JsonClient>::post(&self.inner.client, self, url, body).await
     }
 
     fn base(&self) -> &Url {
