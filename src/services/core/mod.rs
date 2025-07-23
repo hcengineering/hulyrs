@@ -33,7 +33,7 @@ pub type Timestamp = chrono::DateTime<chrono::Utc>;
 #[allow(non_upper_case_globals)]
 pub mod space {
     pub const Space: &str = "core.space.Space";
-    pub const Tx: &str = "core.space.Tx";
+    pub const Tx: &str = "core:space:Tx";
 }
 
 #[allow(non_upper_case_globals)]
