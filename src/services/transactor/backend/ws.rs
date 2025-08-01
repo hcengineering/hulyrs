@@ -22,12 +22,15 @@ use std::time::Duration;
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::{broadcast, oneshot};
 use tokio::task::JoinHandle;
-use tokio_with_wasm::alias as tokio;
 use tracing::{error, trace, warn};
 use url::Url;
-#[cfg(target_family = "wasm")]
+#[cfg(feature = "wasm")]
+use tokio_with_wasm::alias as tokio;
+#[cfg(not(feature = "wasm"))]
+use tokio;
+#[cfg(feature = "wasm")]
 pub use wasmtimer::{std::Instant, tokio::sleep, tokio::timeout};
-#[cfg(not(target_family = "wasm"))]
+#[cfg(not(feature = "wasm"))]
 use {std::time::Instant, tokio::time::sleep, tokio::time::timeout};
 
 const PING: &str = "ping";
