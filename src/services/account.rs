@@ -287,8 +287,8 @@ pub struct LoginParams {
 
 #[derive(Clone)]
 pub struct AccountClient {
-    pub account: AccountUuid,
-    token: SecretString,
+    pub account: Option<AccountUuid>,
+    token: Option<SecretString>,
     base: Url,
     http: HttpClient,
 }
@@ -296,14 +296,14 @@ pub struct AccountClient {
 impl PartialEq for AccountClient {
     fn eq(&self, other: &Self) -> bool {
         self.account == other.account
-            && self.token.expose_secret() == other.token.expose_secret()
+            && self.token.as_ref().map(SecretString::expose_secret) == other.token.as_ref().map(SecretString::expose_secret)
             && self.base == other.base
     }
 }
 
 impl super::TokenProvider for &AccountClient {
     fn provide_token(&self) -> Option<&str> {
-        Some(self.token.expose_secret())
+        self.token.as_ref().map(SecretString::expose_secret)
     }
 }
 
@@ -324,17 +324,27 @@ impl AccountClient {
         Ok(Self {
             http,
             base: base.ok_or(Error::Other("NoAccountService"))?,
-            account,
-            token: token.into(),
+            account: Some(account),
+            token: Some(token.into()),
+        })
+    }
+
+    pub fn without_user(config: &Config, http: HttpClient) -> Result<Self> {
+        let base = config.account_service.clone();
+        Ok(Self {
+            http,
+            base: base.ok_or(Error::Other("NoAccountService"))?,
+            account: None,
+            token: None,
         })
     }
 
     #[deprecated(note = "use ServiceFactory")]
     pub fn assume_claims(&self, claims: &Claims, secret: &SecretString) -> Result<Self> {
-        let account = claims.account;
+        let account = Some(claims.account);
         let base = self.base.clone();
         let http = self.http.clone();
-        let token = claims.encode(secret)?;
+        let token = Some(claims.encode(secret)?);
 
         Ok(Self {
             http,
@@ -354,7 +364,7 @@ impl AccountClient {
             http,
             base,
             account,
-            token: token.as_ref().into(),
+            token: Some(token.as_ref().into()),
         }
     }
 
