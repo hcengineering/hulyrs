@@ -19,9 +19,12 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::time::Duration;
+#[cfg(not(target_family = "wasm"))]
+use tokio;
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::{broadcast, oneshot};
 use tokio::task::JoinHandle;
+#[cfg(target_family = "wasm")]
 use tokio_with_wasm::alias as tokio;
 use tracing::{error, trace, warn};
 use url::Url;
