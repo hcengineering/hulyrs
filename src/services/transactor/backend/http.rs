@@ -1,6 +1,5 @@
 use crate::Result;
 use crate::services::core::WorkspaceUuid;
-use crate::services::transactor::backend::Backend;
 use crate::services::transactor::methods::Method;
 use crate::services::{JsonClient, TokenProvider};
 use reqwest_middleware::ClientWithMiddleware;
