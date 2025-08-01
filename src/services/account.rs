@@ -296,7 +296,8 @@ pub struct AccountClient {
 impl PartialEq for AccountClient {
     fn eq(&self, other: &Self) -> bool {
         self.account == other.account
-            && self.token.as_ref().map(SecretString::expose_secret) == other.token.as_ref().map(SecretString::expose_secret)
+            && self.token.as_ref().map(SecretString::expose_secret)
+                == other.token.as_ref().map(SecretString::expose_secret)
             && self.base == other.base
     }
 }
