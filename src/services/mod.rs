@@ -450,6 +450,10 @@ impl ServiceFactory {
         AccountClient::new(&self.config, self.account_http.clone(), account, token)
     }
 
+    pub fn new_account_client_without_user(&self) -> Result<AccountClient> {
+        AccountClient::without_user(&self.config, self.account_http.clone())
+    }
+
     pub fn new_kvs_client(&self, namespace: &str, claims: &Claims) -> Result<KvsClient> {
         KvsClient::new(
             &self.config,
