@@ -5,7 +5,7 @@ clear
 #git push origin --delete feature/insert_update
 #git push origin --delete feature/insert_update_uuid
 
-NAME="fix rang"
+NAME="fix_rang"
 
 git checkout -b feature/${NAME}
 git add .
