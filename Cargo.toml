@@ -21,7 +21,7 @@ chrono = { version = "0.4.40", features = ["serde"] }
 derive_builder = "0.20.2"
 bytes = "1.10.1"
 uuid = { version = "1.16.0", features = ["serde"] }
-config = "0.15.11"
+config = { version = "0.15.11", default-features = false, features = ["toml"]}
 secrecy = { version = "0.10.3", features = ["serde"] }
 serde_with = "3.12.0"
 rand = "0.9.1"
