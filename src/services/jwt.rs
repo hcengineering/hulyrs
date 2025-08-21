@@ -13,10 +13,11 @@
 // limitations under the License.
 //
 
-use jsonwebtoken as jwt;
+use jsonwebtoken::{self as jwt, Algorithm};
 use jsonwebtoken::{DecodingKey, Validation};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::{collections::HashMap, sync::LazyLock};
 use uuid::Uuid;
@@ -56,7 +57,11 @@ impl Claims {
         secret: impl AsRef<[u8]>,
     ) -> Result<Self, crate::Error> {
         let key = DecodingKey::from_secret(secret.as_ref());
-        Ok(jwt::decode(token.as_ref(), &key, &Validation::default())?.claims)
+
+        let mut validation = Validation::new(Algorithm::HS256);
+        validation.required_spec_claims = HashSet::new();
+
+        Ok(jwt::decode(token.as_ref(), &key, &validation)?.claims)
     }
 
     pub fn account(&self) -> Uuid {
