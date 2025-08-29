@@ -13,12 +13,14 @@
 //
 
 use crate::Result;
+use crate::services::ForceScheme;
 use crate::services::core::WorkspaceUuid;
+use crate::services::core::classes::OperationDomain;
+use crate::services::core::storage::DomainResult;
 use crate::services::transactor::backend::Backend;
 use crate::services::transactor::backend::http::{HttpBackend, HttpClient};
 use crate::services::transactor::backend::ws::{WsBackend, WsBackendOpts};
 use crate::services::transactor::methods::Method;
-use crate::services::{ForceScheme, JsonClient};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -93,6 +95,23 @@ impl<B: Backend> TransactorClient<B> {
         self.backend.post(method, body).await
     }
 
+    pub async fn domain_request<T: DeserializeOwned + Send, Q: Serialize>(
+        &self,
+        domain: OperationDomain,
+        operation: &str,
+        params: &Q,
+    ) -> Result<DomainResult<T>> {
+        self.backend.domain_request(domain, operation, params).await
+    }
+
+    pub async fn tx_raw<T: Serialize, R: DeserializeOwned + Send>(&self, tx: T) -> Result<R> {
+        self.backend.tx_raw(tx).await
+    }
+
+    pub async fn tx<T: Transaction, R: DeserializeOwned + Send>(&self, tx: T) -> Result<R> {
+        self.backend.tx(tx).await
+    }
+
     pub(in crate::services::transactor) fn backend(&self) -> &B {
         &self.backend
     }
@@ -109,19 +128,6 @@ impl TransactorClient<HttpBackend> {
         Ok(Self {
             backend: HttpBackend::new(http, base, workspace, token),
         })
-    }
-}
-
-impl TransactorClient<HttpBackend> {
-    pub async fn tx_raw<T: Serialize, R: DeserializeOwned>(&self, tx: T) -> Result<R> {
-        let path = format!("/api/v1/tx/{}", self.workspace());
-        let url = self.base().join(&path)?;
-
-        <HttpBackend as JsonClient>::post(self.backend(), &self, url, &tx).await
-    }
-
-    pub async fn tx<T: Transaction, R: DeserializeOwned>(&self, tx: T) -> Result<R> {
-        self.tx_raw(tx.to_value()?).await
     }
 }
 
@@ -143,16 +149,6 @@ impl TransactorClient<WsBackend> {
         &self,
     ) -> SubscribedQuery<T> {
         SubscribedQuery::new(self.clone())
-    }
-}
-
-impl TransactorClient<WsBackend> {
-    pub async fn tx_raw<T: Serialize, R: DeserializeOwned + Send>(&self, tx: T) -> Result<R> {
-        self.backend.post(Method::Tx, &tx).await
-    }
-
-    pub async fn tx<T: Transaction, R: DeserializeOwned + Send>(&self, tx: T) -> Result<R> {
-        self.tx_raw(tx.to_value()?).await
     }
 }
 
