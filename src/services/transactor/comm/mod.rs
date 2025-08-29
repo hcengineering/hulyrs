@@ -16,10 +16,11 @@
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{self as json, Value};
 
-use super::tx::{Doc, Obj, Tx, TxDomainEvent};
+use super::tx::{Doc, Obj};
 use crate::Result;
 use crate::services::JsonClient;
-use crate::services::core::Ref;
+use crate::services::core::classes::Ref;
+use crate::services::core::tx::{Tx, TxDomainEvent};
 use crate::services::transactor::backend::http::HttpBackend;
 use crate::services::transactor::document::generate_object_id;
 

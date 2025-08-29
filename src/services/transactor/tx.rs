@@ -13,22 +13,18 @@
 // limitations under the License.
 //
 
-use crate::services::core::classes::OperationDomain;
-use crate::services::core::ser::Data;
-use crate::services::core::{PersonId, Ref, Timestamp};
-use crate::services::event::{Class, Event};
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::Value;
+use crate::services::core::PersonId;
+use crate::services::core::classes::{Ref, Timestamp};
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
-#[derive(Deserialize, Serialize, Debug, Clone, Default)]
+#[derive(Deserialize, Serialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct Obj {
     #[serde(rename = "_class")]
     pub class: Ref,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Doc {
     #[serde(flatten)]
@@ -51,104 +47,4 @@ pub struct Doc {
     #[serde(with = "chrono::serde::ts_milliseconds_option", default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_on: Option<Timestamp>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct Tx {
-    #[serde(flatten)]
-    pub doc: Doc,
-    pub object_space: Ref,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct TxCUD {
-    #[serde(flatten)]
-    pub tx: Tx,
-    pub object_id: Ref,
-    pub object_class: Ref,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub attached_to: Option<Ref>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub attached_to_class: Option<Ref>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub collection: Option<String>,
-}
-
-#[derive(Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct TxCreateDoc<T> {
-    #[serde(flatten)]
-    pub txcud: TxCUD,
-    pub attributes: Data<T>,
-}
-
-impl<T> Class for TxCreateDoc<T> {
-    const CLASS: &'static str = crate::services::core::class::TxCreateDoc;
-}
-
-impl<T: Class> Event for TxCreateDoc<T> {
-    fn matches(value: &Value) -> bool {
-        if value.get("_class").and_then(|v| v.as_str()) != Some(Self::CLASS) {
-            return false;
-        }
-        value.get("objectClass").and_then(|v| v.as_str()) == Some(T::CLASS)
-    }
-}
-
-impl<'de, T> Deserialize<'de> for TxCreateDoc<T>
-where
-    T: Serialize + DeserializeOwned,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = Value::deserialize(deserializer)?;
-
-        let txcud = serde_json::from_value(value.clone()).map_err(serde::de::Error::custom)?;
-
-        let attributes = serde_json::from_value(value).map_err(serde::de::Error::custom)?;
-
-        Ok(TxCreateDoc { txcud, attributes })
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct TxRemoveDoc {
-    #[serde(flatten)]
-    pub txcud: TxCUD,
-}
-
-impl Class for TxRemoveDoc {
-    const CLASS: &'static str = crate::services::core::class::TxRemoveDoc;
-}
-
-impl Event for TxRemoveDoc {}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct TxDomainEvent<T> {
-    #[serde(flatten)]
-    pub tx: Tx,
-
-    pub domain: OperationDomain,
-    pub event: T,
-}
-
-impl<T> Class for TxDomainEvent<T> {
-    const CLASS: &'static str = crate::services::core::class::TxDomainEvent;
-}
-
-impl<T: Class> Event for TxDomainEvent<T> {
-    fn matches(value: &Value) -> bool {
-        if value.get("_class").and_then(|v| v.as_str()) != Some(Self::CLASS) {
-            return false;
-        }
-        value.get("objectClass").and_then(|v| v.as_str()) == Some(T::CLASS)
-    }
 }

@@ -16,9 +16,10 @@ use std::collections::HashMap;
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use serde_json::{self as json};
+use serde_json as json;
 
-use crate::services::core::{PersonId, Timestamp};
+use crate::services::core::PersonId;
+use crate::services::core::classes::{BlobMetadata, Timestamp};
 
 type Date = chrono::DateTime<chrono::Utc>;
 
@@ -43,7 +44,6 @@ macro_rules! message_event {
 }
 
 pub type MessageExtra = HashMap<String, json::Value>;
-pub type BlobMetadata = HashMap<String, json::Value>;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "lowercase")]

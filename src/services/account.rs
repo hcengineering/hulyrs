@@ -21,9 +21,8 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::config::Config;
-use crate::services::core::{
-    AccountUuid, PersonId, PersonUuid, Timestamp, WorkspaceDataId, WorkspaceUuid,
-};
+use crate::services::core::classes::Timestamp;
+use crate::services::core::{AccountUuid, PersonId, PersonUuid, WorkspaceDataId, WorkspaceUuid};
 use crate::{
     Error, Result,
     services::{

@@ -16,8 +16,10 @@
 pub mod classes;
 pub(crate) mod ser;
 pub mod storage;
+pub mod tx;
 
 use crate::services::transactor::tx::Doc;
+use classes::Timestamp;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -27,10 +29,7 @@ pub type PersonId = String;
 pub type WorkspaceDataId = String;
 pub type WorkspaceUuid = Uuid;
 pub type AccountUuid = Uuid;
-pub type Ref = String;
 pub type SocialIdId = String;
-pub type Rank = String;
-pub type Timestamp = chrono::DateTime<chrono::Utc>;
 
 #[allow(non_upper_case_globals)]
 pub mod space {
@@ -43,6 +42,7 @@ pub mod class {
     pub const TxCreateDoc: &str = "core:class:TxCreateDoc";
     pub const TxRemoveDoc: &str = "core:class:TxRemoveDoc";
     pub const TxDomainEvent: &str = "core:class:TxDomainEvent";
+    pub const TxWorkspaceEvent: &str = "core:class:TxWorkspaceEvent";
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
