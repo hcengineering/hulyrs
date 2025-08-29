@@ -14,12 +14,16 @@
 //
 
 pub mod account;
+pub mod card;
 pub mod core;
 pub mod event;
 pub mod jwt;
 pub mod kvs;
+pub mod platform;
+pub mod preference;
 mod rpc;
 pub mod transactor;
+pub mod ui;
 
 pub use reqwest_middleware::{ClientWithMiddleware as HttpClient, RequestBuilder};
 

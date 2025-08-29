@@ -1,4 +1,5 @@
-use crate::services::transactor::tx::Doc;
+use crate::services::platform::Asset;
+use crate::services::transactor::tx::{Doc, Obj};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -8,6 +9,20 @@ pub type Markup = String;
 pub type Hyperlink = String;
 pub type Rank = String;
 pub type MarkupBlobRef = Ref;
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct UXObject {
+    #[serde(flatten)]
+    pub obj: Obj,
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<Asset>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hidden: Option<bool>,
+    #[serde(rename = "readonly")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub read_only: Option<bool>,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
