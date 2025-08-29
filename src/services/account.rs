@@ -41,7 +41,7 @@ pub struct LoginInfo {
     pub token: Option<String>,
 }
 
-#[derive(serde::Deserialize, Debug, Clone)]
+#[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountSocialId {
     #[serde(flatten)]
