@@ -1,11 +1,13 @@
 use super::classes::OperationDomain;
 use crate::services::core::classes::Ref;
-use crate::services::core::ser::Data;
-use crate::services::event::{Class, Event};
+use crate::services::event::{Class, Event, HasId, QueryClass};
 use crate::services::transactor::tx::Doc;
-use serde::de::DeserializeOwned;
+use derive_builder::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::marker::PhantomData;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -108,7 +110,7 @@ impl<T: Class> Event for TxDomainEvent<T> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TxCUD {
     #[serde(flatten)]
@@ -148,25 +150,66 @@ impl<T: Class> Event for TxCreateDoc<T> {
     }
 }
 
-impl<'de, T> Deserialize<'de> for TxCreateDoc<T>
-where
-    T: Serialize + DeserializeOwned,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = Value::deserialize(deserializer)?;
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentUpdate {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub push: Option<HashMap<String, Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pull: Option<HashMap<String, Value>>,
 
-        let txcud = serde_json::from_value(value.clone()).map_err(serde::de::Error::custom)?;
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub update: Option<HashMap<String, Value>>,
 
-        let attributes = serde_json::from_value(value).map_err(serde::de::Error::custom)?;
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inc: Option<HashMap<String, Value>>,
 
-        Ok(TxCreateDoc { txcud, attributes })
-    }
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unset: Option<HashMap<String, Value>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub space: Option<Ref>,
+
+    #[serde(flatten)]
+    pub set_operations: HashMap<String, Value>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Builder)]
+#[serde(rename_all = "camelCase")]
+pub struct TxUpdateDoc<C> {
+    #[serde(flatten)]
+    pub txcud: TxCUD,
+
+    #[serde(flatten)]
+    pub operations: DocumentUpdate,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retrieve: Option<bool>,
+
+    #[serde(skip)]
+    #[builder(setter(skip), default)]
+    pub(crate) _phantom: PhantomData<C>,
+}
+
+impl<C: Debug> Class for TxUpdateDoc<C> {
+    const CLASS: &'static str = crate::services::core::class::TxUpdateDoc;
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+impl<C> HasId for TxUpdateDoc<C> {
+    fn id(&self) -> &str {
+        &self.txcud.object_id
+    }
+}
+
+impl<C: Class> Event for TxUpdateDoc<C> {
+    fn matches(value: &Value) -> bool {
+        if value.get("_class").and_then(|v| v.as_str()) != Some(Self::CLASS) {
+            return false;
+        }
+        value.get("objectClass").and_then(|v| v.as_str()) == Some(C::CLASS)
+    }
+}
 #[serde(rename_all = "camelCase")]
 pub struct TxRemoveDoc {
     #[serde(flatten)]
