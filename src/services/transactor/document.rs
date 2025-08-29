@@ -17,6 +17,7 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{self as json, Value};
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::sync::LazyLock;
 use std::sync::atomic::AtomicUsize;
 
@@ -29,6 +30,7 @@ use crate::services::core::classes::{Ref, Timestamp};
 use crate::services::core::ser::Data;
 use crate::services::core::tx::{Tx, TxCUD, TxCreateDoc, TxRemoveDoc};
 use crate::services::core::{Account, FindResult, PersonId};
+use crate::services::event::Class;
 use crate::services::transactor::backend::Backend;
 use crate::services::transactor::methods::Method;
 use crate::{Error, Result};
@@ -53,12 +55,9 @@ pub(crate) fn generate_object_id() -> Ref {
 }
 
 #[derive(Default, Debug, derive_builder::Builder, Clone)]
-pub struct CreateDocument<T: Serialize> {
+pub struct CreateDocument<C> {
     #[builder(setter(into), default = generate_object_id())]
     object_id: Ref,
-
-    #[builder(setter(into))]
-    object_class: String,
 
     #[builder(setter(into), default = Utc::now())]
     modified_on: Timestamp,
@@ -75,10 +74,16 @@ pub struct CreateDocument<T: Serialize> {
     #[builder(setter(into))]
     object_space: String,
 
-    attributes: T,
+    attributes: C,
 }
 
-impl<T: Serialize> Transaction for CreateDocument<T> {
+impl<C: Clone> CreateDocument<C> {
+    pub fn builder() -> CreateDocumentBuilder<C> {
+        CreateDocumentBuilder::default()
+    }
+}
+
+impl<C: Class + Serialize> Transaction for CreateDocument<C> {
     fn to_value(self) -> Result<Value> {
         let doc = TxCreateDoc {
             txcud: TxCUD {
@@ -98,7 +103,7 @@ impl<T: Serialize> Transaction for CreateDocument<T> {
                     object_space: self.object_space,
                 },
                 object_id: self.object_id,
-                object_class: self.object_class,
+                object_class: C::CLASS.into(),
                 attached_to: None,
                 attached_to_class: None,
                 collection: None,
@@ -112,12 +117,9 @@ impl<T: Serialize> Transaction for CreateDocument<T> {
 }
 
 #[derive(Default, Debug, derive_builder::Builder, Clone, Serialize, Deserialize)]
-struct RemoveDocument {
+pub struct RemoveDocument<C> {
     #[builder(setter(into))]
     object_id: Ref,
-
-    #[builder(setter(into))]
-    object_class: String,
 
     #[builder(setter(into), default)]
     modified_on: Option<Timestamp>,
@@ -133,11 +135,21 @@ struct RemoveDocument {
 
     #[builder(setter(into))]
     object_space: String,
+
+    #[serde(skip)]
+    #[builder(setter(skip), default)]
+    _phantom: PhantomData<C>,
 }
 
-impl Transaction for RemoveDocument {
+impl<C: Clone> RemoveDocument<C> {
+    pub fn builder() -> RemoveDocumentBuilder<C> {
+        RemoveDocumentBuilder::default()
+    }
+}
+
+impl<C: Class> Transaction for RemoveDocument<C> {
     fn to_value(self) -> Result<Value> {
-        let doc = TxRemoveDoc {
+        let doc = TxRemoveDoc::<C> {
             txcud: TxCUD {
                 tx: Tx {
                     doc: Doc {
@@ -155,11 +167,12 @@ impl Transaction for RemoveDocument {
                     object_space: self.object_space,
                 },
                 object_id: self.object_id,
-                object_class: self.object_class,
+                object_class: C::CLASS.into(),
                 attached_to: None,
                 attached_to_class: None,
                 collection: None,
             },
+            _phantom: Default::default(),
         };
 
         Ok(json::to_value(&doc)?)
@@ -306,19 +319,17 @@ impl FindOptionsBuilder {
 pub trait DocumentClient {
     fn get_account(&self) -> impl Future<Output = Result<Account>>;
 
-    fn find_all<Q: Serialize, T: DeserializeOwned>(
+    fn find_all<C: Class + DeserializeOwned, Q: Serialize>(
         &self,
-        class: &str,
         query: Q,
         options: &FindOptions,
-    ) -> impl Future<Output = Result<FindResult<T>>>;
+    ) -> impl Future<Output = Result<FindResult<C>>>;
 
-    fn find_one<Q: Serialize, T: DeserializeOwned>(
+    fn find_one<C: Class + DeserializeOwned, Q: Serialize>(
         &self,
-        class: &str,
         query: Q,
         options: &FindOptions,
-    ) -> impl Future<Output = Result<Option<T>>>;
+    ) -> impl Future<Output = Result<Option<C>>>;
 }
 
 impl<B: Backend> DocumentClient for super::TransactorClient<B> {
@@ -326,12 +337,11 @@ impl<B: Backend> DocumentClient for super::TransactorClient<B> {
         self.get(Method::Account, []).await
     }
 
-    async fn find_all<Q: Serialize, T: DeserializeOwned>(
+    async fn find_all<C: Class + DeserializeOwned, Q: Serialize>(
         &self,
-        class: &str,
         query: Q,
         options: &FindOptions,
-    ) -> Result<FindResult<T>> {
+    ) -> Result<FindResult<C>> {
         let query = json::to_value(query)?;
 
         if !query.is_object() {
@@ -344,7 +354,7 @@ impl<B: Backend> DocumentClient for super::TransactorClient<B> {
             .get(
                 Method::FindAll,
                 [
-                    (String::from("class"), class.into()),
+                    (String::from("class"), C::CLASS.into()),
                     (String::from("query"), json::to_value(query)?),
                     (String::from("options"), json::to_value(options)?),
                 ],
@@ -377,7 +387,7 @@ impl<B: Backend> DocumentClient for super::TransactorClient<B> {
         for entry in result.value.iter_mut() {
             let object = entry.as_object_mut().unwrap();
             if !object.contains_key("_class") {
-                object.insert("_class".into(), Value::String(class.into()));
+                object.insert("_class".into(), Value::String(C::CLASS.into()));
             }
 
             for (k, v) in query.iter() {
@@ -417,15 +427,13 @@ impl<B: Backend> DocumentClient for super::TransactorClient<B> {
         Ok(result)
     }
 
-    async fn find_one<Q: Serialize, T: DeserializeOwned>(
+    async fn find_one<C: Class + DeserializeOwned, Q: Serialize>(
         &self,
-        class: &str,
         query: Q,
         options: &FindOptions,
-    ) -> Result<Option<T>> {
+    ) -> Result<Option<C>> {
         Ok(self
-            .find_all(
-                class,
+            .find_all::<C, _>(
                 query,
                 &FindOptions {
                     limit: Some(1),
