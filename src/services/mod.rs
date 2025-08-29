@@ -15,6 +15,7 @@
 
 pub mod account;
 pub mod card;
+pub mod chat;
 pub mod core;
 pub mod event;
 pub mod jwt;
