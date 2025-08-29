@@ -33,6 +33,7 @@ pub type SocialIdId = String;
 
 #[allow(non_upper_case_globals)]
 pub mod space {
+    pub const Workspace: &str = "core.space.Workspace";
     pub const Space: &str = "core.space.Space";
     pub const Tx: &str = "core:space:Tx";
 }
@@ -40,6 +41,7 @@ pub mod space {
 #[allow(non_upper_case_globals)]
 pub mod class {
     pub const TxCreateDoc: &str = "core:class:TxCreateDoc";
+    pub const TxUpdateDoc: &str = "core:class:TxUpdateDoc";
     pub const TxRemoveDoc: &str = "core:class:TxRemoveDoc";
     pub const TxDomainEvent: &str = "core:class:TxDomainEvent";
     pub const TxWorkspaceEvent: &str = "core:class:TxWorkspaceEvent";
@@ -60,7 +62,7 @@ pub struct Space {
     pub auto_join: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct BasePerson {
     pub name: String,

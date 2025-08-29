@@ -1,16 +1,23 @@
 use crate::services::transactor::tx::Doc;
 use serde_json::Value;
+use std::fmt::Debug;
 
 pub trait DocT: Class + HasId {
     fn doc(&self) -> &Doc;
 }
 
-pub trait Class {
+pub trait Class: Debug {
     const CLASS: &'static str;
 }
 
 pub trait HasId {
     fn id(&self) -> &str;
+}
+
+pub trait QueryClass {
+    type Params: Unpin;
+
+    fn matches(&self, params: &Self::Params) -> bool;
 }
 
 pub trait Event: Class {

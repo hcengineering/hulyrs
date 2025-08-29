@@ -75,8 +75,14 @@ pub struct TxWorkspaceEvent<T> {
     pub event: T,
 }
 
-impl<T> Class for TxWorkspaceEvent<T> {
+impl<T: Debug> Class for TxWorkspaceEvent<T> {
     const CLASS: &'static str = crate::services::core::class::TxWorkspaceEvent;
+}
+
+impl<T> HasId for TxWorkspaceEvent<T> {
+    fn id(&self) -> &str {
+        &self.tx.doc.id
+    }
 }
 
 impl<T: Class> Event for TxWorkspaceEvent<T> {
@@ -97,11 +103,11 @@ pub struct TxDomainEvent<T> {
     pub event: T,
 }
 
-impl<T> Class for TxDomainEvent<T> {
+impl<T: Debug> Class for TxDomainEvent<T> {
     const CLASS: &'static str = crate::services::core::class::TxDomainEvent;
 }
 
-impl<T: Class> Event for TxDomainEvent<T> {
+impl<T: QueryClass + Class> Event for TxDomainEvent<T> {
     fn matches(value: &Value) -> bool {
         if value.get("_class").and_then(|v| v.as_str()) != Some(Self::CLASS) {
             return false;
@@ -128,17 +134,23 @@ pub struct TxCUD {
     pub collection: Option<String>,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TxCreateDoc<T> {
     #[serde(flatten)]
     pub txcud: TxCUD,
     #[serde(flatten)]
-    pub attributes: Data<T>,
+    pub attributes: T,
 }
 
-impl<T> Class for TxCreateDoc<T> {
+impl<T: Debug> Class for TxCreateDoc<T> {
     const CLASS: &'static str = crate::services::core::class::TxCreateDoc;
+}
+
+impl<C> HasId for TxCreateDoc<C> {
+    fn id(&self) -> &str {
+        &self.txcud.object_id
+    }
 }
 
 impl<T: Class> Event for TxCreateDoc<T> {
@@ -195,7 +207,6 @@ impl<C: Debug> Class for TxUpdateDoc<C> {
     const CLASS: &'static str = crate::services::core::class::TxUpdateDoc;
 }
 
-#[derive(Serialize, Deserialize, Debug)]
 impl<C> HasId for TxUpdateDoc<C> {
     fn id(&self) -> &str {
         &self.txcud.object_id
@@ -210,14 +221,39 @@ impl<C: Class> Event for TxUpdateDoc<C> {
         value.get("objectClass").and_then(|v| v.as_str()) == Some(C::CLASS)
     }
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize, Builder)]
 #[serde(rename_all = "camelCase")]
-pub struct TxRemoveDoc {
+pub struct TxRemoveDoc<C> {
     #[serde(flatten)]
     pub txcud: TxCUD,
+
+    #[serde(skip)]
+    #[builder(setter(skip), default)]
+    pub(crate) _phantom: PhantomData<C>,
 }
 
-impl Class for TxRemoveDoc {
+impl<C: Clone> TxRemoveDoc<C> {
+    pub fn builder() -> TxRemoveDocBuilder<C> {
+        TxRemoveDocBuilder::default()
+    }
+}
+
+impl<C: Debug> Class for TxRemoveDoc<C> {
     const CLASS: &'static str = crate::services::core::class::TxRemoveDoc;
 }
 
-impl Event for TxRemoveDoc {}
+impl<C> HasId for TxRemoveDoc<C> {
+    fn id(&self) -> &str {
+        &self.txcud.object_id
+    }
+}
+
+impl<C: Class> Event for TxRemoveDoc<C> {
+    fn matches(value: &Value) -> bool {
+        if value.get("_class").and_then(|v| v.as_str()) != Some(Self::CLASS) {
+            return false;
+        }
+        value.get("objectClass").and_then(|v| v.as_str()) == Some(C::CLASS)
+    }
+}
