@@ -17,10 +17,14 @@ use crate::services::ForceScheme;
 use crate::services::core::WorkspaceUuid;
 use crate::services::core::classes::OperationDomain;
 use crate::services::core::storage::DomainResult;
+use crate::services::event::{Class, DocT};
 use crate::services::transactor::backend::Backend;
 use crate::services::transactor::backend::http::{HttpBackend, HttpClient};
 use crate::services::transactor::backend::ws::{WsBackend, WsBackendOpts};
+use crate::services::transactor::document::{FindOptions, RemoveDocument};
 use crate::services::transactor::methods::Method;
+use crate::services::transactor::subscription::LiveQueryEvent;
+use futures::Stream;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -32,7 +36,7 @@ pub mod comm;
 pub mod document;
 pub mod methods;
 pub mod person;
-mod subscription;
+pub mod subscription;
 pub mod tx;
 
 pub trait Transaction {
@@ -115,6 +119,16 @@ impl<B: Backend> TransactorClient<B> {
     pub(in crate::services::transactor) fn backend(&self) -> &B {
         &self.backend
     }
+
+    pub async fn remove<T: DocT + Clone>(&self, doc: &T) -> Result<()> {
+        let tx = RemoveDocument::<T>::builder()
+            .object_id(doc.id())
+            .object_space(&doc.doc().space)
+            .build()
+            .expect("fields filled");
+
+        self.backend.tx(tx).await
+    }
 }
 
 impl TransactorClient<HttpBackend> {
@@ -149,6 +163,15 @@ impl TransactorClient<WsBackend> {
         &self,
     ) -> SubscribedQuery<T> {
         SubscribedQuery::new(self.clone())
+    }
+
+    /// Fetches all documents of the specified [`Class`], and subscribes to future events
+    pub fn live_query<C: Class + DeserializeOwned + Send + Unpin + 'static, Q: Serialize + Send>(
+        &self,
+        query: Q,
+        options: FindOptions,
+    ) -> impl Stream<Item = Result<LiveQueryEvent<C>>> + Send + use<C, Q> {
+        subscription::live_query(self.clone(), query, options)
     }
 }
 
