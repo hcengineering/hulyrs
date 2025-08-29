@@ -24,6 +24,7 @@ api_methods!(
     FindAll: "find-all", "findAll",
     EnsurePerson: "ensure-person", "ensurePerson",
     Tx: "tx", "tx",
+    Request: "request", "domainRequest",
     Event: "event", "event",
     Ping: "ping", "ping",
     Hello: "hello", "hello",

@@ -13,6 +13,7 @@
 // limitations under the License.
 //
 
+use crate::services::core::classes::OperationDomain;
 use crate::services::core::ser::Data;
 use crate::services::core::{PersonId, Ref, Timestamp};
 use crate::services::event::{Class, Event};
@@ -129,8 +130,6 @@ impl Class for TxRemoveDoc {
 }
 
 impl Event for TxRemoveDoc {}
-
-pub type OperationDomain = String;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TxDomainEvent<T> {

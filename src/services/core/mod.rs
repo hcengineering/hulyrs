@@ -13,7 +13,9 @@
 // limitations under the License.
 //
 
+pub mod classes;
 pub(crate) mod ser;
+pub mod storage;
 
 use crate::services::transactor::tx::Doc;
 use serde::{Deserialize, Serialize};

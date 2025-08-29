@@ -1,4 +1,6 @@
 use crate::services::core::WorkspaceUuid;
+use crate::services::core::classes::OperationDomain;
+use crate::services::core::storage::DomainResult;
 use crate::services::rpc::util::OkResponse;
 use crate::services::rpc::{HelloRequest, HelloResponse, ReqId, Request, Response};
 use crate::services::transactor::backend::Backend;
@@ -84,6 +86,8 @@ async fn socket_task(
                 Command::Call { mut payload, reply_tx } => {
                     let id = next_id.fetch_add(1, Ordering::Relaxed);
                     payload["id"] = Value::Number(id.into());
+
+                    trace!(target: "ws", %payload, "Sending message");
 
                     pending.insert(id.into(), reply_tx);
                     write.send(encode_message(&payload, binary_mode)?).await?;
@@ -408,6 +412,33 @@ impl Backend for WsBackend {
         send_and_wait(&self.inner.cmd_tx, payload).await
     }
 
+    async fn domain_request<T: DeserializeOwned + Send, Q: Serialize>(
+        &self,
+        domain: OperationDomain,
+        operation: &str,
+        params: &Q,
+    ) -> Result<DomainResult<T>> {
+        let payload = Request {
+            id: None,
+            method: Method::Request.camel().to_string(),
+            params: vec![
+                Value::String(domain),
+                serde_json::json!({
+                    operation: {
+                        "params": params
+                    },
+                }),
+            ],
+            time: None,
+        };
+
+        send_and_wait(&self.inner.cmd_tx, payload).await
+    }
+
+    async fn tx_raw<T: Serialize, R: DeserializeOwned + Send>(&self, tx: T) -> Result<R> {
+        self.post(Method::Tx, &tx).await
+    }
+
     fn base(&self) -> &Url {
         &self.inner.base
     }
@@ -422,7 +453,6 @@ async fn send_and_wait<T: DeserializeOwned + Send, U: Serialize + Debug>(
     payload: Request<U>,
 ) -> Result<T> {
     let payload = serde_json::to_value(&payload)?;
-    trace!(target: "ws", %payload, "Sending message");
 
     let (reply_tx, reply_rx) = oneshot::channel();
     cmd_tx.send(Command::Call { payload, reply_tx }).ok();
