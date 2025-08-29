@@ -68,7 +68,7 @@ pub struct BasePerson {
     pub person_uuid: Option<PersonUuid>,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum SocialIdType {
     Email,
@@ -80,7 +80,7 @@ pub enum SocialIdType {
     Telegram,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SocialId {
     #[serde(rename = "_id")]

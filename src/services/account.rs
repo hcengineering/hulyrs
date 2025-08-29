@@ -41,7 +41,7 @@ pub struct LoginInfo {
     pub token: Option<String>,
 }
 
-#[derive(serde::Deserialize, Debug, Clone)]
+#[derive(serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountSocialId {
     #[serde(flatten)]
@@ -240,6 +240,13 @@ pub struct WorkspaceLoginInfo {
     pub role: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RegionInfo {
+    pub region: String,
+    pub name: String,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, derive_builder::Builder)]
 #[serde(rename_all = "camelCase")]
 pub struct EnsurePersonParams {
@@ -405,6 +412,10 @@ impl AccountClient {
         params: &PartialIntegrationKey,
     ) -> Result<Vec<Integration>> {
         self.http.service(self, "listIntegrations", params).await
+    }
+
+    pub async fn get_region_info(&self) -> Result<Vec<RegionInfo>> {
+        self.http.service(self, "getRegionInfo", json!({})).await
     }
 
     pub async fn get_integration(&self, params: &IntegrationKey) -> Result<Option<Integration>> {
