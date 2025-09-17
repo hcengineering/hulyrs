@@ -22,10 +22,12 @@ pub mod jwt;
 pub mod kvs;
 pub mod platform;
 pub mod preference;
+pub mod pulse;
 mod rpc;
 pub mod transactor;
 pub mod ui;
 
+use pulse::PulseClient;
 pub use reqwest_middleware::{ClientWithMiddleware as HttpClient, RequestBuilder};
 
 use std::collections::HashMap;
@@ -299,6 +301,7 @@ pub struct ServiceFactory {
     account_http: HttpClient,
     kvs_http: HttpClient,
     transactor_http: HttpClient,
+    pulse_http: HttpClient,
 }
 
 impl ServiceFactory {
@@ -425,11 +428,25 @@ impl ServiceFactory {
         #[cfg(not(feature = "reqwest_middleware"))]
         let transactor_http = { ClientBuilder::new(reqwest::Client::new()).build() };
 
+        #[cfg(feature = "reqwest_middleware")]
+        let pulse_http = {
+            let policy = ExponentialBackoff::builder()
+                .build_with_total_retry_duration(Duration::from_secs(10));
+
+            ClientBuilder::new(reqwest::Client::new())
+                .with(RetryTransientMiddleware::new_with_policy(policy))
+                .build()
+        };
+
+        #[cfg(not(feature = "reqwest_middleware"))]
+        let pulse_http = { ClientBuilder::new(reqwest::Client::new()).build() };
+
         Self {
             config,
             account_http,
             kvs_http,
             transactor_http,
+            pulse_http,
         }
     }
 
@@ -528,6 +545,19 @@ impl ServiceFactory {
     #[cfg(feature = "kafka")]
     pub fn new_kafka_publisher(&self, topic: &str) -> Result<kafka::KafkaProducer> {
         kafka::KafkaProducer::new(&self.config, topic)
+    }
+
+    pub fn new_pulse_client(
+        &self,
+        workspace: WorkspaceUuid,
+        token: impl Into<SecretString>,
+    ) -> Result<PulseClient> {
+        PulseClient::new(
+            &self.config,
+            self.pulse_http.clone(),
+            workspace,
+            token.into(),
+        )
     }
 
     pub fn config(&self) -> &Config {

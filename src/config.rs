@@ -57,6 +57,9 @@ pub struct Config {
     #[serde_as(as = "StringWithSeparator::<CommaSeparator, String>")]
     #[builder(default)]
     pub external_regions: Vec<String>,
+
+    #[builder(setter(strip_option, into), default)]
+    pub pulse_service: Option<Url>,
 }
 
 impl PartialEq for Config {
@@ -81,6 +84,7 @@ impl PartialEq for Config {
             && kafka_eq
             && rate_limit_eq
             && self.external_regions == other.external_regions
+            && self.pulse_service == other.pulse_service
     }
 }
 
