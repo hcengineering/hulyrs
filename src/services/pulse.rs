@@ -20,7 +20,7 @@ use crate::{
 use chrono::Utc;
 use reqwest::{
     Method, StatusCode,
-    header::{self},
+    header::{self, HeaderName},
 };
 use reqwest_middleware::RequestBuilder;
 use secrecy::{ExposeSecret, SecretString};
@@ -35,8 +35,8 @@ pub struct PulseClient {
     base: Url,
 }
 
-const PULSE_TTL_HEADER: &str = "HULY-TTL";
-const PULSE_EXPIRE_AT_HEADER: &str = "HULY-EXPIRE-AT";
+const PULSE_TTL_HEADER: HeaderName = HeaderName::from_static("huly-ttl");
+const PULSE_EXPIRE_AT_HEADER: HeaderName = HeaderName::from_static("huly-expire-at");
 
 #[derive(Deserialize)]
 struct ObjectResponse {
