@@ -92,6 +92,8 @@ pub enum SocialIdType {
     OIDC,
     Huly,
     Telegram,
+    #[serde(untagged)]
+    Unknown(String),
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
