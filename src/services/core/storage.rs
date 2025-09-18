@@ -3,6 +3,7 @@ use crate::services::event::{Class, HasId};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Source {
@@ -47,6 +48,24 @@ impl<C: PartialEq> PartialEq for WithLookup<C> {
 impl<T> WithLookup<T> {
     pub fn into_inner(self) -> T {
         self.doc
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WithoutStructure<T> {
+    #[serde(flatten)]
+    pub data: serde_json::Value,
+    #[serde(skip)]
+    _marker: PhantomData<T>,
+}
+
+impl<C: Class> Class for WithoutStructure<C> {
+    const CLASS: &'static str = C::CLASS;
+}
+
+impl<T> WithoutStructure<T> {
+    pub fn into_inner(self) -> serde_json::Value {
+        self.data
     }
 }
 
