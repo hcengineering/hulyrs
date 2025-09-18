@@ -1,9 +1,7 @@
-use crate::services::event::{Class, HasId};
 use crate::services::platform::Asset;
 use crate::services::transactor::tx::{Doc, Obj};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use uuid::Uuid;
 
 pub type Ref = String;
 pub type Timestamp = chrono::DateTime<chrono::Utc>;
@@ -11,7 +9,6 @@ pub type Markup = String;
 pub type Hyperlink = String;
 pub type Rank = String;
 pub type MarkupBlobRef = Ref;
-pub type AccountUuid = Uuid;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct UXObject {
@@ -65,30 +62,3 @@ pub struct BlobType {
 }
 
 pub type Blobs = HashMap<String, BlobType>;
-
-#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct Space {
-    #[serde(flatten)]
-    pub doc: Doc,
-
-    pub name: String,
-    pub description: String,
-    pub private: bool,
-    pub archived: bool,
-    pub members: Vec<AccountUuid>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub owners: Vec<AccountUuid>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub auto_join: Option<bool>,
-}
-
-impl Class for Space {
-    const CLASS: &'static str = "core:class:Space";
-}
-
-impl HasId for Space {
-    fn id(&self) -> &str {
-        &self.doc.id
-    }
-}

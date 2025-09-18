@@ -24,6 +24,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+use super::event::{Class, HasId};
+
 pub type PersonUuid = Uuid;
 pub type PersonId = String;
 pub type WorkspaceDataId = String;
@@ -60,6 +62,16 @@ pub struct Space {
     pub owners: Option<Vec<AccountUuid>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto_join: Option<bool>,
+}
+
+impl Class for Space {
+    const CLASS: &'static str = "core:class:Space";
+}
+
+impl HasId for Space {
+    fn id(&self) -> &str {
+        &self.doc.id
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
