@@ -52,7 +52,11 @@ impl HttpBackend {
         let mut url = self.base().join(path)?;
         let mut qp = url.query_pairs_mut();
         for (name, value) in params {
-            qp.append_pair(&name, &value.to_string());
+            if let Value::String(string) = &value {
+                qp.append_pair(&name, string);
+            } else {
+                qp.append_pair(&name, &value.to_string());
+            }
         }
         drop(qp);
 
