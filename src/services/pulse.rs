@@ -93,12 +93,13 @@ fn make_rest_api_endpoint(url: Url) -> Result<Url> {
         url.path_segments_mut()
             .map_err(|_| Error::Other("InvalidPulseUrl"))?
             .pop()
-            .push("api");
+            .push("api")
+            .push("");
         url
     } else {
         url
     };
-    if !matches!(url.scheme(), "http" | "https") || !url.path().ends_with("/api") {
+    if !matches!(url.scheme(), "http" | "https") || !url.path().ends_with("/api/") {
         return Err(Error::Other("InvalidPulseUrl"));
     }
     Ok(url)
@@ -205,7 +206,10 @@ mod tests {
         let check_url = |original: &str, expected: &str| {
             let original_url = Url::parse(original).unwrap();
             let expected_url = Url::parse(expected).unwrap();
-            let processed = make_rest_api_endpoint(original_url).unwrap();
+            let processed = make_rest_api_endpoint(original_url)
+                .unwrap()
+                .join("workspace")
+                .unwrap();
             assert_eq!(processed, expected_url);
         };
         let check_invalid_rejected = |original: &str| {
@@ -215,41 +219,46 @@ mod tests {
         };
         check_url(
             "ws://pulse.on.some.host/ws",
-            "http://pulse.on.some.host/api",
+            "http://pulse.on.some.host/api/workspace",
         );
         check_url(
             "wss://pulse.on.some.host/ws",
-            "https://pulse.on.some.host/api",
+            "https://pulse.on.some.host/api/workspace",
         );
         check_url(
             "ws://pulse.on.some.host/path/ws",
-            "http://pulse.on.some.host/path/api",
+            "http://pulse.on.some.host/path/api/workspace",
         );
         check_url(
             "wss://pulse.on.some.host/path/ws",
-            "https://pulse.on.some.host/path/api",
+            "https://pulse.on.some.host/path/api/workspace",
         );
         check_url(
-            "http://pulse.on.some.host/api",
-            "http://pulse.on.some.host/api",
+            "http://pulse.on.some.host/api/",
+            "http://pulse.on.some.host/api/workspace",
         );
         check_url(
-            "https://pulse.on.some.host/api",
-            "https://pulse.on.some.host/api",
+            "https://pulse.on.some.host/api/",
+            "https://pulse.on.some.host/api/workspace",
         );
         check_url(
-            "http://pulse.on.some.host/path/api",
-            "http://pulse.on.some.host/path/api",
+            "http://pulse.on.some.host/path/api/",
+            "http://pulse.on.some.host/path/api/workspace",
         );
         check_url(
-            "https://pulse.on.some.host/path/api",
-            "https://pulse.on.some.host/path/api",
+            "https://pulse.on.some.host/path/api/",
+            "https://pulse.on.some.host/path/api/workspace",
+        );
+        check_url(
+            "wss://pulse.hc.engineering/ws",
+            "https://pulse.hc.engineering/api/workspace",
         );
 
         check_invalid_rejected("ws://pulse.on.some.host/");
         check_invalid_rejected("ws://pulse.on.some.host/some/path");
-        check_invalid_rejected("wss://pulse.on.some.host/api");
+        check_invalid_rejected("wss://pulse.on.some.host/api/");
         check_invalid_rejected("http://pulse.on.some.host/");
+        check_invalid_rejected("http://pulse.on.some.host/api");
         check_invalid_rejected("https://pulse.on.some.host/some/path");
     }
 }
