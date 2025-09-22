@@ -291,6 +291,13 @@ pub struct LoginParams {
     pub password: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountInfo {
+    pub locale: Option<String>,
+    pub timezone: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct AccountClient {
     pub account: Option<AccountUuid>,
@@ -473,5 +480,10 @@ impl AccountClient {
 
     pub async fn get_user_workspaces(&self) -> Result<Vec<WorkspaceInfoWithStatus>> {
         self.http.service(self, "getUserWorkspaces", ()).await
+    }
+
+    pub async fn get_account_info(&self, account_uuid: &AccountUuid) -> Result<AccountInfo> {
+        let params = json!({"accountId": account_uuid});
+        self.http.service(self, "getAccountInfo", params).await
     }
 }
