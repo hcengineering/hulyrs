@@ -49,7 +49,7 @@ pub type BlobMetadata = HashMap<String, json::Value>;
 #[serde(rename_all = "lowercase")]
 pub enum MessageType {
     #[default]
-    Message,
+    Text,
     Activity,
 }
 
