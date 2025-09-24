@@ -88,6 +88,25 @@ pub struct Integration {
     pub data: Option<serde_json::Value>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct IntegrationSecret {
+    pub social_id: PersonId,
+    pub kind: String,
+    pub workspace_uuid: Option<WorkspaceUuid>,
+    pub key: String,
+    pub secret: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct IntegrationSecretKey {
+    pub social_id: PersonId,
+    pub kind: String,
+    pub workspace_uuid: Option<WorkspaceUuid>,
+    pub key: String,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum WorkspaceKind {
@@ -298,6 +317,14 @@ pub struct AccountInfo {
     pub timezone: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ListAccountsParams {
+    pub search: Option<String>,
+    pub skip: Option<u32>,
+    pub limit: Option<u32>,
+}
+
 #[derive(Clone)]
 pub struct AccountClient {
     pub account: Option<AccountUuid>,
@@ -485,5 +512,36 @@ impl AccountClient {
     pub async fn get_account_info(&self, account_uuid: &AccountUuid) -> Result<AccountInfo> {
         let params = json!({"accountId": account_uuid});
         self.http.service(self, "getAccountInfo", params).await
+    }
+
+    pub async fn list_accounts(&self, params: &ListAccountsParams) -> Result<Vec<AccountInfo>> {
+        self.http.service(self, "listAccounts", params).await
+    }
+
+    pub async fn add_integration_secret(&self, secret: &IntegrationSecret) -> Result<()> {
+        self.http
+            .service(self, "addIntegrationSecret", secret)
+            .await
+    }
+
+    pub async fn get_integration_secret(
+        &self,
+        params: &IntegrationSecretKey,
+    ) -> Result<Option<IntegrationSecret>> {
+        self.http
+            .service(self, "getIntegrationSecret", params)
+            .await
+    }
+
+    pub async fn update_integration_secret(&self, params: &IntegrationSecret) -> Result<()> {
+        self.http
+            .service(self, "updateIntegrationSecret", params)
+            .await
+    }
+
+    pub async fn delete_integration_secret(&self, params: &IntegrationSecretKey) -> Result<()> {
+        self.http
+            .service(self, "deleteIntegrationSecret", params)
+            .await
     }
 }
