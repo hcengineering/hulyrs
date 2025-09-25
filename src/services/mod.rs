@@ -20,6 +20,8 @@ pub mod core;
 pub mod event;
 pub mod jwt;
 pub mod kvs;
+#[cfg(feature = "otel")]
+pub mod otel;
 pub mod platform;
 pub mod preference;
 pub mod pulse;

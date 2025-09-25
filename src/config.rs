@@ -60,6 +60,10 @@ pub struct Config {
 
     #[builder(setter(strip_option, into), default)]
     pub pulse_service: Option<Url>,
+
+    #[cfg(feature = "otel")]
+    #[serde(default)]
+    pub otel_mode: crate::services::otel::OtelMode,
 }
 
 impl PartialEq for Config {
