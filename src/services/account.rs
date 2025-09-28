@@ -494,6 +494,17 @@ impl AccountClient {
             .await
     }
 
+    pub async fn find_person_by_social_id(
+        &self,
+        social_id: &PersonId,
+        require_account: bool,
+    ) -> Result<Option<Uuid>> {
+        let params = json!({"socialId": social_id, "requireAccount": require_account});
+        self.http
+            .service(self, "findPersonBySocialId", params)
+            .await
+    }
+
     pub async fn find_social_id_by_social_key(
         &self,
         key: &str,
