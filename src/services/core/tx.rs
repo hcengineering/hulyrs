@@ -87,10 +87,7 @@ impl<T> HasId for TxWorkspaceEvent<T> {
 
 impl<T: Class> Event for TxWorkspaceEvent<T> {
     fn matches(value: &Value) -> bool {
-        if value.get("_class").and_then(|v| v.as_str()) != Some(Self::CLASS) {
-            return false;
-        }
-        value.get("objectClass").and_then(|v| v.as_str()) == Some(T::CLASS)
+        value.get("_class").and_then(|v| v.as_str()) == Some(Self::CLASS)
     }
 }
 
