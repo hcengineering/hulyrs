@@ -1,6 +1,6 @@
 use super::classes::OperationDomain;
 use crate::services::core::classes::Ref;
-use crate::services::event::{Class, Event, HasId, QueryClass};
+use crate::services::event::{Class, Event, HasId};
 use crate::services::transactor::tx::Doc;
 use derive_builder::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -107,12 +107,9 @@ impl<T: Debug> Class for TxDomainEvent<T> {
     const CLASS: &'static str = crate::services::core::class::TxDomainEvent;
 }
 
-impl<T: QueryClass + Class> Event for TxDomainEvent<T> {
+impl<T: Debug> Event for TxDomainEvent<T> {
     fn matches(value: &Value) -> bool {
-        if value.get("_class").and_then(|v| v.as_str()) != Some(Self::CLASS) {
-            return false;
-        }
-        value.get("objectClass").and_then(|v| v.as_str()) == Some(T::CLASS)
+        value.get("_class").and_then(|v| v.as_str()) == Some(Self::CLASS)
     }
 }
 
