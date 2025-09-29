@@ -319,14 +319,14 @@ impl FindOptionsBuilder {
 pub trait DocumentClient {
     fn get_account(&self) -> impl Future<Output = Result<Account>>;
 
-    fn find_all<C: DeserializeOwned, Q: Serialize>(
+    fn find_all<Q: Serialize, C: DeserializeOwned>(
         &self,
         class: &str,
         query: Q,
         options: &FindOptions,
     ) -> impl Future<Output = Result<FindResult<C>>>;
 
-    fn find_one<C: DeserializeOwned, Q: Serialize>(
+    fn find_one<Q: Serialize, C: DeserializeOwned>(
         &self,
         class: &str,
         query: Q,
@@ -339,7 +339,7 @@ impl<B: Backend> DocumentClient for super::TransactorClient<B> {
         self.get(Method::Account, []).await
     }
 
-    async fn find_all<C: DeserializeOwned, Q: Serialize>(
+    async fn find_all<Q: Serialize, C: DeserializeOwned>(
         &self,
         class: &str,
         query: Q,
@@ -430,14 +430,14 @@ impl<B: Backend> DocumentClient for super::TransactorClient<B> {
         Ok(result)
     }
 
-    async fn find_one<C: DeserializeOwned, Q: Serialize>(
+    async fn find_one<Q: Serialize, C: DeserializeOwned>(
         &self,
         class: &str,
         query: Q,
         options: &FindOptions,
     ) -> Result<Option<C>> {
         Ok(self
-            .find_all::<C, _>(
+            .find_all::<_, C>(
                 class,
                 query,
                 &FindOptions {

@@ -121,7 +121,7 @@ pub(super) fn live_query<
     let client_clone = client.clone();
     let initial_fetch = async move {
         let results = client_clone
-            .find_all::<C, Q>(C::CLASS, query, &options)
+            .find_all::<Q, C>(C::CLASS, query, &options)
             .await?;
         Ok(LiveQueryEvent::Initial(results.value))
     };
