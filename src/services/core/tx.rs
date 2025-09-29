@@ -68,24 +68,24 @@ impl<'de> Deserialize<'de> for WorkspaceEvent {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct TxWorkspaceEvent<T> {
+pub struct TxWorkspaceEvent {
     #[serde(flatten)]
     pub tx: Tx,
     pub domain: WorkspaceEvent,
-    pub event: T,
+    pub event: serde_json::Value,
 }
 
-impl<T: Debug> Class for TxWorkspaceEvent<T> {
+impl Class for TxWorkspaceEvent {
     const CLASS: &'static str = crate::services::core::class::TxWorkspaceEvent;
 }
 
-impl<T> HasId for TxWorkspaceEvent<T> {
+impl HasId for TxWorkspaceEvent {
     fn id(&self) -> &str {
         &self.tx.doc.id
     }
 }
 
-impl<T: Class> Event for TxWorkspaceEvent<T> {
+impl Event for TxWorkspaceEvent {
     fn matches(value: &Value) -> bool {
         value.get("_class").and_then(|v| v.as_str()) == Some(Self::CLASS)
     }
@@ -93,18 +93,18 @@ impl<T: Class> Event for TxWorkspaceEvent<T> {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct TxDomainEvent<T> {
+pub struct TxDomainEvent {
     #[serde(flatten)]
     pub tx: Tx,
     pub domain: OperationDomain,
-    pub event: T,
+    pub event: serde_json::Value,
 }
 
-impl<T: Debug> Class for TxDomainEvent<T> {
+impl Class for TxDomainEvent {
     const CLASS: &'static str = crate::services::core::class::TxDomainEvent;
 }
 
-impl<T: Debug> Event for TxDomainEvent<T> {
+impl Event for TxDomainEvent {
     fn matches(value: &Value) -> bool {
         value.get("_class").and_then(|v| v.as_str()) == Some(Self::CLASS)
     }
