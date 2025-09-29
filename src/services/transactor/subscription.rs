@@ -120,7 +120,9 @@ pub(super) fn live_query<
 ) -> impl Stream<Item = Result<LiveQueryEvent<C>>> + Send {
     let client_clone = client.clone();
     let initial_fetch = async move {
-        let results = client_clone.find_all::<C, Q>(query, &options).await?;
+        let results = client_clone
+            .find_all::<C, Q>(C::CLASS, query, &options)
+            .await?;
         Ok(LiveQueryEvent::Initial(results.value))
     };
 

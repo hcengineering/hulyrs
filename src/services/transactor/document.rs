@@ -319,14 +319,16 @@ impl FindOptionsBuilder {
 pub trait DocumentClient {
     fn get_account(&self) -> impl Future<Output = Result<Account>>;
 
-    fn find_all<C: Class + DeserializeOwned, Q: Serialize>(
+    fn find_all<C: DeserializeOwned, Q: Serialize>(
         &self,
+        class: &str,
         query: Q,
         options: &FindOptions,
     ) -> impl Future<Output = Result<FindResult<C>>>;
 
-    fn find_one<C: Class + DeserializeOwned, Q: Serialize>(
+    fn find_one<C: DeserializeOwned, Q: Serialize>(
         &self,
+        class: &str,
         query: Q,
         options: &FindOptions,
     ) -> impl Future<Output = Result<Option<C>>>;
@@ -337,8 +339,9 @@ impl<B: Backend> DocumentClient for super::TransactorClient<B> {
         self.get(Method::Account, []).await
     }
 
-    async fn find_all<C: Class + DeserializeOwned, Q: Serialize>(
+    async fn find_all<C: DeserializeOwned, Q: Serialize>(
         &self,
+        class: &str,
         query: Q,
         options: &FindOptions,
     ) -> Result<FindResult<C>> {
@@ -354,7 +357,7 @@ impl<B: Backend> DocumentClient for super::TransactorClient<B> {
             .get(
                 Method::FindAll,
                 [
-                    (String::from("class"), C::CLASS.into()),
+                    (String::from("class"), class.into()),
                     (String::from("query"), json::to_value(query)?),
                     (String::from("options"), json::to_value(options)?),
                 ],
@@ -387,7 +390,7 @@ impl<B: Backend> DocumentClient for super::TransactorClient<B> {
         for entry in result.value.iter_mut() {
             let object = entry.as_object_mut().unwrap();
             if !object.contains_key("_class") {
-                object.insert("_class".into(), Value::String(C::CLASS.into()));
+                object.insert("_class".into(), Value::String(class.into()));
             }
 
             for (k, v) in query.iter() {
@@ -427,13 +430,15 @@ impl<B: Backend> DocumentClient for super::TransactorClient<B> {
         Ok(result)
     }
 
-    async fn find_one<C: Class + DeserializeOwned, Q: Serialize>(
+    async fn find_one<C: DeserializeOwned, Q: Serialize>(
         &self,
+        class: &str,
         query: Q,
         options: &FindOptions,
     ) -> Result<Option<C>> {
         Ok(self
             .find_all::<C, _>(
+                class,
                 query,
                 &FindOptions {
                     limit: Some(1),
