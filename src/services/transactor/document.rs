@@ -29,7 +29,6 @@ use crate::services::core::classes::{Ref, Timestamp};
 use crate::services::core::ser::Data;
 use crate::services::core::tx::{Tx, TxCUD, TxCreateDoc, TxRemoveDoc};
 use crate::services::core::{Account, FindResult, PersonId};
-use crate::services::event::Class;
 use crate::services::transactor::backend::Backend;
 use crate::services::transactor::methods::Method;
 use crate::{Error, Result};
@@ -85,7 +84,7 @@ impl<C: Clone + Serialize> CreateDocument<C> {
     }
 }
 
-impl<C: Class + Serialize> Transaction for CreateDocument<C> {
+impl<C: Serialize> Transaction for CreateDocument<C> {
     fn to_value(self) -> Result<Value> {
         let doc = TxCreateDoc {
             txcud: TxCUD {
