@@ -50,15 +50,16 @@ impl HttpBackend {
         params: impl IntoIterator<Item = (String, Value)>,
     ) -> Result<T> {
         let mut url = self.base().join(path)?;
-        let mut qp = url.query_pairs_mut();
-        for (name, value) in params {
-            if let Value::String(string) = &value {
-                qp.append_pair(&name, string);
-            } else {
-                qp.append_pair(&name, &value.to_string());
+        {
+            let mut qp = url.query_pairs_mut();
+            for (name, value) in params {
+                if let Value::String(string) = &value {
+                    qp.append_pair(&name, string);
+                } else {
+                    qp.append_pair(&name, &value.to_string());
+                }
             }
         }
-        drop(qp);
 
         <crate::services::HttpClient as JsonClient>::get(&self.inner.client, self, url).await
     }
