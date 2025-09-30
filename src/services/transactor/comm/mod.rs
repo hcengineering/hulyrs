@@ -96,7 +96,7 @@ impl<T: Serialize> super::Transaction for Envelope<T> {
             },
 
             domain: "communication".to_string(),
-            event: json::to_value(&self)?,
+            event: self,
         };
         Ok(json::to_value(&event)?)
     }
