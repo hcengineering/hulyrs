@@ -121,7 +121,8 @@ impl<B: Backend> TransactorClient<B> {
     }
 
     pub async fn remove<T: DocT + Clone>(&self, doc: &T) -> Result<()> {
-        let tx = RemoveDocument::<T>::builder()
+        let tx = RemoveDocument::builder()
+            .object_class(&doc.doc().obj.class)
             .object_id(doc.id())
             .object_space(&doc.doc().space)
             .build()
