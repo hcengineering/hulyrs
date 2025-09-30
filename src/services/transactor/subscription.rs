@@ -37,7 +37,7 @@ impl<C: Class> SubscribedQuery<C> {
 pub enum TxEvent<C> {
     Created(Box<TxCreateDoc<C>>),
     Updated(Box<TxUpdateDoc<C>>),
-    Deleted(Box<TxRemoveDoc<C>>),
+    Deleted(Box<TxRemoveDoc>),
 }
 
 impl<T> TxEvent<WithLookup<T>> {
@@ -53,10 +53,7 @@ impl<T> TxEvent<WithLookup<T>> {
                 retrieve: tx.retrieve,
                 _phantom: Default::default(),
             })),
-            TxEvent::Deleted(tx) => TxEvent::Deleted(Box::new(TxRemoveDoc {
-                txcud: tx.txcud,
-                _phantom: Default::default(),
-            })),
+            TxEvent::Deleted(tx) => TxEvent::Deleted(Box::new(TxRemoveDoc { txcud: tx.txcud })),
         }
     }
 }
@@ -74,8 +71,10 @@ impl<C: Class + DeserializeOwned + Send + Unpin + 'static> Stream for Subscribed
                     } else if TxUpdateDoc::<C>::matches(&value) {
                         let tx: TxUpdateDoc<C> = serde_json::from_value(value)?;
                         return Poll::Ready(Some(Ok(TxEvent::Updated(Box::new(tx)))));
-                    } else if TxRemoveDoc::<C>::matches(&value) {
-                        let tx: TxRemoveDoc<C> = serde_json::from_value(value)?;
+                    } else if TxRemoveDoc::matches(&value)
+                        && value.get("objectClass").and_then(|v| v.as_str()) == Some(C::CLASS)
+                    {
+                        let tx: TxRemoveDoc = serde_json::from_value(value)?;
                         return Poll::Ready(Some(Ok(TxEvent::Deleted(Box::new(tx)))));
                     }
 

@@ -17,7 +17,6 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{self as json, Value};
 use std::collections::HashMap;
-use std::marker::PhantomData;
 use std::sync::LazyLock;
 use std::sync::atomic::AtomicUsize;
 
@@ -55,9 +54,12 @@ pub(crate) fn generate_object_id() -> Ref {
 }
 
 #[derive(Default, Debug, derive_builder::Builder, Clone)]
-pub struct CreateDocument<C> {
+pub struct CreateDocument<C: Serialize> {
     #[builder(setter(into), default = generate_object_id())]
     object_id: Ref,
+
+    #[builder(setter(into))]
+    object_class: String,
 
     #[builder(setter(into), default = Utc::now())]
     modified_on: Timestamp,
@@ -77,7 +79,7 @@ pub struct CreateDocument<C> {
     attributes: C,
 }
 
-impl<C: Clone> CreateDocument<C> {
+impl<C: Clone + Serialize> CreateDocument<C> {
     pub fn builder() -> CreateDocumentBuilder<C> {
         CreateDocumentBuilder::default()
     }
@@ -103,7 +105,7 @@ impl<C: Class + Serialize> Transaction for CreateDocument<C> {
                     object_space: self.object_space,
                 },
                 object_id: self.object_id,
-                object_class: C::CLASS.into(),
+                object_class: self.object_class,
                 attached_to: None,
                 attached_to_class: None,
                 collection: None,
@@ -117,9 +119,12 @@ impl<C: Class + Serialize> Transaction for CreateDocument<C> {
 }
 
 #[derive(Default, Debug, derive_builder::Builder, Clone, Serialize, Deserialize)]
-pub struct RemoveDocument<C> {
+pub struct RemoveDocument {
     #[builder(setter(into))]
     object_id: Ref,
+
+    #[builder(setter(into))]
+    object_class: String,
 
     #[builder(setter(into), default)]
     modified_on: Option<Timestamp>,
@@ -135,21 +140,17 @@ pub struct RemoveDocument<C> {
 
     #[builder(setter(into))]
     object_space: String,
-
-    #[serde(skip)]
-    #[builder(setter(skip), default)]
-    _phantom: PhantomData<C>,
 }
 
-impl<C: Clone> RemoveDocument<C> {
-    pub fn builder() -> RemoveDocumentBuilder<C> {
+impl RemoveDocument {
+    pub fn builder() -> RemoveDocumentBuilder {
         RemoveDocumentBuilder::default()
     }
 }
 
-impl<C: Class> Transaction for RemoveDocument<C> {
+impl Transaction for RemoveDocument {
     fn to_value(self) -> Result<Value> {
-        let doc = TxRemoveDoc::<C> {
+        let doc = TxRemoveDoc {
             txcud: TxCUD {
                 tx: Tx {
                     doc: Doc {
@@ -167,12 +168,11 @@ impl<C: Class> Transaction for RemoveDocument<C> {
                     object_space: self.object_space,
                 },
                 object_id: self.object_id,
-                object_class: C::CLASS.into(),
+                object_class: self.object_class,
                 attached_to: None,
                 attached_to_class: None,
                 collection: None,
             },
-            _phantom: Default::default(),
         };
 
         Ok(json::to_value(&doc)?)
