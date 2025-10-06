@@ -1,6 +1,6 @@
 use super::classes::OperationDomain;
 use crate::services::core::classes::Ref;
-use crate::services::event::{Class, Event, HasId, QueryClass};
+use crate::services::event::{Class, Event, HasId};
 use crate::services::transactor::tx::Doc;
 use derive_builder::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -85,12 +85,9 @@ impl<T> HasId for TxWorkspaceEvent<T> {
     }
 }
 
-impl<T: Class> Event for TxWorkspaceEvent<T> {
+impl<T: Debug> Event for TxWorkspaceEvent<T> {
     fn matches(value: &Value) -> bool {
-        if value.get("_class").and_then(|v| v.as_str()) != Some(Self::CLASS) {
-            return false;
-        }
-        value.get("objectClass").and_then(|v| v.as_str()) == Some(T::CLASS)
+        value.get("_class").and_then(|v| v.as_str()) == Some(Self::CLASS)
     }
 }
 
@@ -107,12 +104,9 @@ impl<T: Debug> Class for TxDomainEvent<T> {
     const CLASS: &'static str = crate::services::core::class::TxDomainEvent;
 }
 
-impl<T: QueryClass + Class> Event for TxDomainEvent<T> {
+impl<T: Debug> Event for TxDomainEvent<T> {
     fn matches(value: &Value) -> bool {
-        if value.get("_class").and_then(|v| v.as_str()) != Some(Self::CLASS) {
-            return false;
-        }
-        value.get("objectClass").and_then(|v| v.as_str()) == Some(T::CLASS)
+        value.get("_class").and_then(|v| v.as_str()) == Some(Self::CLASS)
     }
 }
 
@@ -224,36 +218,29 @@ impl<C: Class> Event for TxUpdateDoc<C> {
 
 #[derive(Clone, Debug, Serialize, Deserialize, Builder)]
 #[serde(rename_all = "camelCase")]
-pub struct TxRemoveDoc<C> {
+pub struct TxRemoveDoc {
     #[serde(flatten)]
     pub txcud: TxCUD,
-
-    #[serde(skip)]
-    #[builder(setter(skip), default)]
-    pub(crate) _phantom: PhantomData<C>,
 }
 
-impl<C: Clone> TxRemoveDoc<C> {
-    pub fn builder() -> TxRemoveDocBuilder<C> {
+impl TxRemoveDoc {
+    pub fn builder() -> TxRemoveDocBuilder {
         TxRemoveDocBuilder::default()
     }
 }
 
-impl<C: Debug> Class for TxRemoveDoc<C> {
+impl Class for TxRemoveDoc {
     const CLASS: &'static str = crate::services::core::class::TxRemoveDoc;
 }
 
-impl<C> HasId for TxRemoveDoc<C> {
+impl HasId for TxRemoveDoc {
     fn id(&self) -> &str {
         &self.txcud.object_id
     }
 }
 
-impl<C: Class> Event for TxRemoveDoc<C> {
+impl Event for TxRemoveDoc {
     fn matches(value: &Value) -> bool {
-        if value.get("_class").and_then(|v| v.as_str()) != Some(Self::CLASS) {
-            return false;
-        }
-        value.get("objectClass").and_then(|v| v.as_str()) == Some(C::CLASS)
+        value.get("_class").and_then(|v| v.as_str()) == Some(Self::CLASS)
     }
 }
