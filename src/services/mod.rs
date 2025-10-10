@@ -184,15 +184,20 @@ impl JsonClient for HttpClient {
         request.send_ext().await?.json_body::<R>().await
     }
 
+    #[tracing::instrument(
+        level = "trace",
+        skip(self, user, url, body),
+        fields(%url, method = "post", type = "json")
+    )]
     async fn post<U: TokenProvider, Q: Serialize, R: DeserializeOwned>(
         &self,
         user: &U,
         url: Url,
         body: &Q,
     ) -> Result<R> {
-        let body = json::to_value(body)?;
+        trace!("request");
 
-        trace!(type="json", %url, method="post", %body, "http request");
+        let body = json::to_value(body)?;
 
         let mut request = self.post(url.clone()).json(&body);
 
@@ -201,8 +206,6 @@ impl JsonClient for HttpClient {
         }
 
         let response = request.send_ext().await?.json::<Value>().await?;
-
-        trace!(type="json", %url, method="post", %response, "http response");
 
         from_value(response)
     }
@@ -240,6 +243,11 @@ pub trait ServiceClient {
 }
 
 impl ServiceClient for HttpClient {
+    #[tracing::instrument(
+        level = "trace",
+        skip(self, user, method, params),
+        fields(url=%user.provide_base_path(), %method, type = "service")
+    )]
     async fn service<U: TokenProvider + BasePathProvider, R: DeserializeOwned>(
         &self,
         user: U,

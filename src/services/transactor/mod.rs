@@ -83,6 +83,11 @@ impl<B: Backend> TransactorClient<B> {
         self.backend.workspace()
     }
 
+    #[tracing::instrument(
+        level = "trace",
+        skip(self, method, params),
+        fields(api_method=%method, type = "transactor")
+    )]
     pub async fn get<T: DeserializeOwned + Send>(
         &self,
         method: Method,
@@ -91,6 +96,11 @@ impl<B: Backend> TransactorClient<B> {
         self.backend.get(method, params).await
     }
 
+    #[tracing::instrument(
+        level = "trace",
+        skip(self, method, body),
+        fields(api_method=%method, type = "transactor")
+    )]
     pub async fn post<T: DeserializeOwned + Send, Q: Serialize>(
         &self,
         method: Method,
@@ -99,6 +109,11 @@ impl<B: Backend> TransactorClient<B> {
         self.backend.post(method, body).await
     }
 
+    #[tracing::instrument(
+        level = "trace",
+        skip(self, domain, operation, params),
+        fields(api_method="domain_request", domain=%domain, operation=%operation, type = "transactor")
+    )]
     pub async fn domain_request<T: DeserializeOwned + Send, Q: Serialize>(
         &self,
         domain: OperationDomain,
@@ -108,10 +123,20 @@ impl<B: Backend> TransactorClient<B> {
         self.backend.domain_request(domain, operation, params).await
     }
 
+    #[tracing::instrument(
+        level = "trace",
+        skip(self, tx),
+        fields(api_method = "tx_raw", type = "transactor")
+    )]
     pub async fn tx_raw<T: Serialize, R: DeserializeOwned + Send>(&self, tx: T) -> Result<R> {
         self.backend.tx_raw(tx).await
     }
 
+    #[tracing::instrument(
+        level = "trace",
+        skip(self, tx),
+        fields(api_method = "tx", type = "transactor")
+    )]
     pub async fn tx<T: Transaction, R: DeserializeOwned + Send>(&self, tx: T) -> Result<R> {
         self.backend.tx(tx).await
     }
@@ -120,6 +145,11 @@ impl<B: Backend> TransactorClient<B> {
         &self.backend
     }
 
+    #[tracing::instrument(
+        level = "trace",
+        skip(self, doc),
+        fields(api_method = "remove", type = "transactor")
+    )]
     pub async fn remove<T: DocT + Clone>(&self, doc: &T) -> Result<()> {
         let tx = RemoveDocument::builder()
             .object_class(&doc.doc().obj.class)
