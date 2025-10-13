@@ -133,7 +133,7 @@ pub struct TxCUD {
 pub struct TxCreateDoc<T> {
     #[serde(flatten)]
     pub txcud: TxCUD,
-    #[serde(flatten)]
+
     pub attributes: T,
 }
 
