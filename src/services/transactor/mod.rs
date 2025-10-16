@@ -74,6 +74,32 @@ impl<B: Backend> super::TokenProvider for &TransactorClient<B> {
     }
 }
 
+#[cfg(feature = "otel")]
+mod otel {
+    use opentelemetry::{global::meter, metrics::Counter};
+    use std::sync::LazyLock;
+
+    pub(super) static TX_COUNT: LazyLock<Counter<u64>> =
+        LazyLock::new(|| meter("huly.transaction").u64_counter("count").build());
+}
+
+macro_rules! metrics {
+    ($op:expr, $($extra:expr),*) => {
+        #[cfg(feature = "otel")]
+        {
+            use opentelemetry::KeyValue;
+
+            otel::TX_COUNT.add(
+                1,
+                &[
+                    KeyValue::new("op", $op),
+                    $($extra,)*
+                ],
+            );
+        }
+    };
+}
+
 impl<B: Backend> TransactorClient<B> {
     pub fn base(&self) -> &Url {
         self.backend.base()
@@ -93,6 +119,7 @@ impl<B: Backend> TransactorClient<B> {
         method: Method,
         params: impl IntoIterator<Item = (String, Value)> + Send,
     ) -> Result<T> {
+        metrics!("get", KeyValue::new("method", method.to_string()));
         self.backend.get(method, params).await
     }
 
@@ -106,6 +133,7 @@ impl<B: Backend> TransactorClient<B> {
         method: Method,
         body: &Q,
     ) -> Result<T> {
+        metrics!("post", KeyValue::new("method", method.to_string()));
         self.backend.post(method, body).await
     }
 
@@ -120,15 +148,21 @@ impl<B: Backend> TransactorClient<B> {
         operation: &str,
         params: &Q,
     ) -> Result<DomainResult<T>> {
+        metrics!(
+            "domain_request",
+            KeyValue::new("domain", domain.to_string()),
+            KeyValue::new("method", operation.to_string())
+        );
         self.backend.domain_request(domain, operation, params).await
     }
 
     #[tracing::instrument(
         level = "trace",
         skip(self, tx),
-        fields(api_method = "tx_raw", type = "transactor")
+        fields(api_method = "tx", type = "transactor")
     )]
     pub async fn tx_raw<T: Serialize, R: DeserializeOwned + Send>(&self, tx: T) -> Result<R> {
+        metrics!("tx", KeyValue::new("method", "tx"));
         self.backend.tx_raw(tx).await
     }
 
@@ -138,6 +172,7 @@ impl<B: Backend> TransactorClient<B> {
         fields(api_method = "tx", type = "transactor")
     )]
     pub async fn tx<T: Transaction, R: DeserializeOwned + Send>(&self, tx: T) -> Result<R> {
+        metrics!("tx", KeyValue::new("method", "tx"));
         self.backend.tx(tx).await
     }
 
@@ -145,11 +180,6 @@ impl<B: Backend> TransactorClient<B> {
         &self.backend
     }
 
-    #[tracing::instrument(
-        level = "trace",
-        skip(self, doc),
-        fields(api_method = "remove", type = "transactor")
-    )]
     pub async fn remove<T: DocT + Clone>(&self, doc: &T) -> Result<()> {
         let tx = RemoveDocument::builder()
             .object_class(&doc.doc().obj.class)
@@ -158,7 +188,7 @@ impl<B: Backend> TransactorClient<B> {
             .build()
             .expect("fields filled");
 
-        self.backend.tx(tx).await
+        self.tx(tx).await
     }
 }
 
