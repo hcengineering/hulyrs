@@ -80,7 +80,7 @@ mod otel {
     use std::sync::LazyLock;
 
     pub(super) static TX_COUNT: LazyLock<Counter<u64>> =
-        LazyLock::new(|| meter("huly.transaction").u64_counter("count").build());
+        LazyLock::new(|| meter("hulyrs.transactor").u64_counter("tx_count").build());
 }
 
 macro_rules! metrics {
