@@ -372,14 +372,21 @@ impl<B: Backend> DocumentClient for super::TransactorClient<B> {
                 };
 
                 for value in obj_lookup.values_mut() {
+                    fn lookup_key(value: &Value) -> Option<String> {
+                        value
+                            .as_str()
+                            .map(ToOwned::to_owned)
+                            .or_else(|| value.as_number().map(|n| n.to_string()))
+                    }
+
                     if let Some(array) = value.as_array_mut() {
                         for item in array {
-                            if let Some(lookup_key) = item.as_str() {
-                                *item = lookup_map.get(lookup_key).cloned().unwrap_or(Value::Null)
+                            if let Some(lookup_key) = lookup_key(item) {
+                                *item = lookup_map.get(&lookup_key).cloned().unwrap_or(Value::Null)
                             }
                         }
-                    } else if let Some(lookup_key) = value.as_str() {
-                        *value = lookup_map.get(lookup_key).cloned().unwrap_or(Value::Null)
+                    } else if let Some(lookup_key) = lookup_key(value) {
+                        *value = lookup_map.get(&lookup_key).cloned().unwrap_or(Value::Null)
                     }
                 }
             }
