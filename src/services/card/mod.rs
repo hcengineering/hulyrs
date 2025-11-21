@@ -113,3 +113,10 @@ impl HasId for FavoriteCard {
         &self.doc().id
     }
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+pub struct CardSpace;
+
+impl Class for CardSpace {
+    const CLASS: &'static str = card::class::CardSpace;
+}
