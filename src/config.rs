@@ -39,6 +39,9 @@ pub struct Config {
     #[builder(setter(strip_option, into), default)]
     pub kvs_service: Option<Url>,
 
+    #[builder(setter(strip_option, into), default)]
+    pub collaborator_service: Option<Url>,
+
     #[serde_as(as = "DisplayFromStr")]
     #[builder(setter(strip_option, into), default = "tracing::Level::INFO")]
     pub log: tracing::Level,
@@ -84,6 +87,7 @@ impl PartialEq for Config {
             == other.token_secret.as_ref().map(SecretString::expose_secret)
             && self.account_service == other.account_service
             && self.kvs_service == other.kvs_service
+            && self.collaborator_service == other.collaborator_service
             && self.log == other.log
             && kafka_eq
             && rate_limit_eq

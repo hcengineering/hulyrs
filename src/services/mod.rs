@@ -16,6 +16,7 @@
 pub mod account;
 pub mod card;
 pub mod chat;
+pub mod collaborator;
 pub mod core;
 pub mod event;
 pub mod jwt;
@@ -48,6 +49,7 @@ use crate::services::transactor::backend::http::HttpBackend;
 use crate::services::transactor::backend::ws::{WsBackend, WsBackendOpts};
 use crate::{Error, Result, config::Config};
 use account::AccountClient;
+use collaborator::CollaboratorClient;
 use jwt::Claims;
 use kvs::KvsClient;
 use transactor::TransactorClient;
@@ -312,6 +314,7 @@ pub struct ServiceFactory {
     kvs_http: HttpClient,
     transactor_http: HttpClient,
     pulse_http: HttpClient,
+    collaborator_http: HttpClient,
 }
 
 impl ServiceFactory {
@@ -451,12 +454,26 @@ impl ServiceFactory {
         #[cfg(not(feature = "reqwest_middleware"))]
         let pulse_http = { ClientBuilder::new(reqwest::Client::new()).build() };
 
+        #[cfg(feature = "reqwest_middleware")]
+        let collaborator_http = {
+            let policy = ExponentialBackoff::builder()
+                .build_with_total_retry_duration(Duration::from_secs(10));
+
+            ClientBuilder::new(reqwest::Client::new())
+                .with(RetryTransientMiddleware::new_with_policy(policy))
+                .build()
+        };
+
+        #[cfg(not(feature = "reqwest_middleware"))]
+        let collaborator_http = { ClientBuilder::new(reqwest::Client::new()).build() };
+
         Self {
             config,
             account_http,
             kvs_http,
             transactor_http,
             pulse_http,
+            collaborator_http,
         }
     }
 
@@ -492,6 +509,19 @@ impl ServiceFactory {
             self.kvs_http.clone(),
             namespace.to_owned(),
             claims,
+        )
+    }
+
+    pub fn new_collaborator_client_from_token(
+        &self,
+        workspace: WorkspaceUuid,
+        token: impl Into<SecretString>,
+    ) -> Result<CollaboratorClient> {
+        CollaboratorClient::new(
+            &self.config,
+            self.collaborator_http.clone(),
+            workspace,
+            token,
         )
     }
 
