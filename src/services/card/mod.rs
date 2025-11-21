@@ -63,14 +63,16 @@ pub struct Card {
     pub icon_props: IconProps,
     pub title: String,
     pub content: MarkupBlobRef,
-    pub blobs: Blobs,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blobs: Option<Blobs>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub children: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attachments: Option<u32>,
-    pub parent_info: Vec<ParentInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_info: Option<Vec<ParentInfo>>,
     pub parent: Option<Box<Card>>,
-    pub rank: Rank,
+    pub rank: Option<Rank>,
 }
 
 impl DocT for Card {
