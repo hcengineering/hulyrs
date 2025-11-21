@@ -17,12 +17,12 @@ use reqwest_middleware::ClientWithMiddleware as HttpClient;
 use secrecy::{ExposeSecret, SecretString};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use serde_json::{self as json, Value, from_value};
+use serde_json::{self as json};
 use std::collections::HashMap;
 use url::Url;
 
 use crate::config::Config;
-use crate::services::Status;
+use crate::services::ResponseExt;
 use crate::services::core::WorkspaceUuid;
 use crate::services::core::classes::{Markup, Ref};
 use crate::{Error, Result};
@@ -119,12 +119,12 @@ impl CollaboratorClient {
 
     fn encode_document_id(&self, document: &CollaborativeDoc) -> String {
         format!(
-            "{}.{}.{}.{}",
-            self.workspace, document.object_id, document.object_class, document.object_attr
+            "{}|{}|{}|{}",
+            self.workspace, document.object_class, document.object_id, document.object_attr
         )
     }
 
-    async fn rpc<R: DeserializeOwned>(
+    async fn rpc<R: DeserializeOwned + std::fmt::Debug>(
         &self,
         document: &CollaborativeDoc,
         method: &str,
@@ -147,9 +147,10 @@ impl CollaboratorClient {
         }
 
         #[derive(Deserialize, Debug)]
-        struct Response {
-            result: Option<json::Value>,
-            error: Option<json::Value>,
+        struct RpcResponse<T> {
+            #[serde(flatten)]
+            result: T,
+            error: Option<String>,
         }
 
         let response = self
@@ -161,26 +162,13 @@ impl CollaboratorClient {
             .send_ext()
             .await?;
 
-        let response = response.json::<Value>().await?;
-        let response = from_value(response)?;
+        let rpc_response: RpcResponse<R> = response.json_body().await?;
 
-        match json::from_value(response)? {
-            Response {
-                result: Some(result),
-                error: None,
-            } => Ok(from_value::<R>(result)?),
-
-            Response {
-                result: None,
-                error: Some(error),
-            } => Err(Error::ServiceError(from_value::<Status>(error)?)),
-
-            Response {
-                result: None,
-                error: None,
-            } => Ok(json::from_value(json::Value::Null)?),
-
-            _ => Err(Error::Other("Unexpected service response")),
+        if let Some(error) = rpc_response.error {
+            // TODO: map error to ServiceError variant
+            return Err(Error::Other(error.clone().leak()));
         }
+
+        Ok(rpc_response.result)
     }
 }
