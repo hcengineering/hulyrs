@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 #[allow(non_upper_case_globals)]
 pub mod class {
+    pub const CardSpace: &str = "card:class:CardSpace";
     pub const Card: &str = "card:class:Card";
     pub const MasterTag: &str = "card:class:MasterTag";
     pub const FavoriteCard: &str = "card:class:FavoriteCard";
