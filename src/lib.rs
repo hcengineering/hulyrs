@@ -16,7 +16,9 @@
 pub use reqwest::StatusCode;
 
 mod config;
+pub mod markdown;
 pub mod services;
+pub mod text;
 
 pub use config::{Config, ConfigBuilder, ConfigBuilderError};
 pub use services::ServiceFactory;

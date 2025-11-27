@@ -21,8 +21,10 @@ chrono = { version = "0.4.40", features = ["serde"] }
 derive_builder = "0.20.2"
 bytes = "1.10.1"
 uuid = { version = "1.16.0", features = ["serde"] }
-config = { version = "0.15.11", default-features = false, features = ["toml"]}
+config = { version = "0.15.11", default-features = false, features = ["toml"] }
 secrecy = { version = "0.10.3", features = ["serde"] }
+percent-encoding = "2.3"
+regex = "1.0"
 serde_with = "3.12.0"
 rand = "0.9.1"
 futures = "0.3.31"
@@ -58,12 +60,18 @@ tokio = { version = "1", features = ["rt", "sync", "macros"] }
 [dev-dependencies]
 anyhow = "1.0.98"
 tokio = { version = "1", features = ["full"] }
+test-case = "3.3"
 
 [features]
 default = ["reqwest_middleware"]
 actix = ["dep:actix-web"]
 kafka = ["dep:rdkafka"]
-otel  = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:opentelemetry-stdout"]
+otel = [
+    "dep:opentelemetry",
+    "dep:opentelemetry_sdk",
+    "dep:opentelemetry-otlp",
+    "dep:opentelemetry-stdout",
+]
 reqwest_middleware = ["dep:reqwest-retry", "dep:reqwest-ratelimit"]
 
 [lints.clippy]
