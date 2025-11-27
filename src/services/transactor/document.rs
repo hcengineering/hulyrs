@@ -49,7 +49,7 @@ pub(crate) fn generate_object_id() -> Ref {
         timestamp = 0;
     }
 
-    format!("{timestamp:8X}{}{count}", &*RANDOM)
+    format!("{timestamp:08X}{}{count}", &*RANDOM)
 }
 
 #[derive(Default, Debug, derive_builder::Builder, Clone)]
