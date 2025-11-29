@@ -3,8 +3,10 @@ use std::collections::HashMap;
 use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
 use regex::Regex;
 
-use crate::markdown::node::{get_bool_attr, get_num_attr, get_str_attr};
-use crate::text::{AttrValue, MarkupMark, MarkupMarkType, MarkupNode, MarkupNodeType};
+use crate::text::{
+    AttrValue, MarkupMark, MarkupMarkType, MarkupNode, MarkupNodeType, get_bool_attr, get_num_attr,
+    get_str_attr,
+};
 
 const URI_ENCODE_SET: &AsciiSet = &CONTROLS
     .add(b' ')
@@ -40,19 +42,11 @@ fn is_plain_url(link: &MarkupMark, parent: &MarkupNode, index: usize) -> bool {
         return false;
     };
 
-    if content.node_type != MarkupNodeType::Text {
+    if content.node_type != MarkupNodeType::Text || content.text != href {
         return false;
     }
 
-    let Some(text) = content.text.as_ref() else {
-        return false;
-    };
-
-    if text != &href {
-        return false;
-    }
-
-    let marks = content.marks.as_deref().unwrap_or(&[]);
+    let marks = &content.marks;
     if marks.is_empty() || marks.last() != Some(link) {
         return false;
     }
@@ -60,8 +54,7 @@ fn is_plain_url(link: &MarkupMark, parent: &MarkupNode, index: usize) -> bool {
     parent
         .content
         .get(index + 1)
-        .and_then(|next| next.marks.as_deref())
-        .map_or(true, |next_marks| !is_in_set(link, next_marks))
+        .map_or(true, |next| !is_in_set(link, &next.marks))
 }
 
 struct InlineState<'a> {
@@ -174,7 +167,7 @@ impl<'a> MarkdownRenderer<'a> {
                 self.write("```");
                 self.close_block(node);
             }
-            MarkupNodeType::Text => self.text(node.text.as_deref().unwrap_or(""), true),
+            MarkupNodeType::Text => self.text(&node.text, true),
             MarkupNodeType::Image => self.image(node),
             MarkupNodeType::File => todo!(),
             MarkupNodeType::Reference => {
@@ -323,7 +316,7 @@ impl<'a> MarkdownRenderer<'a> {
         state.marks = state
             .node
             .as_ref()
-            .and_then(|n| n.marks.clone())
+            .and_then(|n| Some(n.marks.clone()))
             .unwrap_or_default();
 
         self.update_hardbreak_marks(state, index);
@@ -604,7 +597,7 @@ impl<'a> MarkdownRenderer<'a> {
     }
 
     fn is_text(&self, node: Option<&MarkupNode>) -> bool {
-        matches!(node, Some(n) if n.node_type == MarkupNodeType::Text && n.text.is_some())
+        matches!(node, Some(n) if n.node_type == MarkupNodeType::Text && !n.text.is_empty())
     }
 
     fn is_hardbreak_text(&self, next: Option<&MarkupNode>) -> bool {
@@ -613,10 +606,10 @@ impl<'a> MarkdownRenderer<'a> {
             Some(node) => {
                 node.node_type != MarkupNodeType::HardBreak
                     && (node.node_type != MarkupNodeType::Text
-                        || node.text.as_ref().map_or(false, |t| {
+                        || !node.text.is_empty() && {
                             let regex = regex::Regex::new(r"\S").unwrap();
-                            regex.is_match(t)
-                        }))
+                            regex.is_match(&node.text)
+                        })
             }
         }
     }
@@ -665,25 +658,17 @@ impl<'a> MarkdownRenderer<'a> {
 
         if self.is_text(state.node) && self.is_marks_has_expel_enclosing_whitespace(state) {
             if let Some(node) = state.node {
-                if let Some(text) = &node.text {
-                    let text_str = text.as_str();
-                    let lead_end = text_str.len() - text_str.trim_start().len();
-                    let trail_start = text_str.trim_end().len();
+                let text_str = node.text.as_str();
+                let lead_end = text_str.len() - text_str.trim_start().len();
+                let trail_start = text_str.trim_end().len();
 
-                    let lead_match = &text_str[..lead_end];
-                    let inner_match = &text_str[lead_end..trail_start];
-                    let trail_match = &text_str[trail_start..];
+                let lead_match = &text_str[..lead_end];
+                let inner_match = &text_str[lead_end..trail_start];
+                let trail_match = &text_str[trail_start..];
 
-                    leading.push_str(lead_match);
-                    state.trailing = trail_match.to_string();
-                    self.adjust_leading_text_node(
-                        lead_match,
-                        trail_match,
-                        state,
-                        inner_match,
-                        node,
-                    );
-                }
+                leading.push_str(lead_match);
+                state.trailing = trail_match.to_string();
+                self.adjust_leading_text_node(lead_match, trail_match, state, inner_match, node);
             }
         }
         leading
@@ -700,7 +685,7 @@ impl<'a> MarkdownRenderer<'a> {
             return Vec::new();
         }
         let empty_marks = Vec::new();
-        let next_marks = next.and_then(|n| n.marks.as_ref()).unwrap_or(&empty_marks);
+        let next_marks = next.and_then(|n| Some(&n.marks)).unwrap_or(&empty_marks);
         marks
             .iter()
             .filter(|m| is_in_set(m, next_marks))
@@ -1008,12 +993,12 @@ impl<'a> MarkdownRenderer<'a> {
         for node in &cell.content {
             match node.node_type {
                 MarkupNodeType::Text => {
-                    content.push_str(&self.html_esc(node.text.as_deref().unwrap_or("")));
+                    content.push_str(&self.html_esc(&node.text));
                 }
                 MarkupNodeType::Paragraph => {
                     for child in &node.content {
                         if let MarkupNodeType::Text = child.node_type {
-                            content.push_str(&self.html_esc(child.text.as_deref().unwrap_or("")));
+                            content.push_str(&self.html_esc(&child.text));
                         }
                     }
                 }

@@ -16,7 +16,6 @@
 pub use reqwest::StatusCode;
 
 mod config;
-pub mod markdown;
 pub mod services;
 pub mod text;
 

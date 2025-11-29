@@ -1,78 +1,10 @@
-use std::collections::HashMap;
+mod html;
+mod markdown;
+mod node;
 
-use serde::{Deserialize, Serialize};
+pub use html::html_to_markup;
+pub use html::markup_to_html;
+pub use markdown::markdown_to_markup;
+pub use markdown::markup_to_markdown;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum MarkupNodeType {
-    Doc,
-    Paragraph,
-    Blockquote,
-    HorizontalRule,
-    Heading,
-    CodeBlock,
-    Text,
-    Image,
-    File,
-    Reference,
-    Emoji,
-    HardBreak,
-    OrderedList,
-    BulletList,
-    ListItem,
-    TaskList,
-    TaskItem,
-    TodoList,
-    TodoItem,
-    SubLink,
-    Table,
-    TableRow,
-    TableCell,
-    TableHeader,
-    Mermaid,
-    Comment,
-    Markdown,
-    Embed,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum MarkupMarkType {
-    Link,
-    Italic,
-    Bold,
-    Code,
-    Strike,
-    Underline,
-    TextColor,
-    TextStyle,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum AttrValue {
-    Str(String),
-    Num(i32),
-    Bool(bool),
-    Null,
-    Undefined,
-}
-
-pub type Attrs = HashMap<String, AttrValue>;
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct MarkupMark {
-    #[serde(rename = "type")]
-    pub mark_type: MarkupMarkType,
-    pub attrs: Attrs,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct MarkupNode {
-    #[serde(rename = "type")]
-    pub node_type: MarkupNodeType,
-    pub content: Vec<MarkupNode>,
-    pub marks: Option<Vec<MarkupMark>>,
-    pub attrs: Attrs,
-    pub text: Option<String>,
-}
+pub use node::*;

@@ -15,7 +15,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::markdown::markup_to_markdown;
+    use crate::text::markdown::markup_to_markdown;
     use crate::text::{AttrValue, MarkupMark, MarkupMarkType, MarkupNode, MarkupNodeType};
     use regex::Regex;
     use std::collections::HashMap;
@@ -119,9 +119,9 @@ mod tests {
         MarkupNode {
             node_type: MarkupNodeType::Text,
             content: Vec::new(),
-            marks: Some(marks),
+            marks,
             attrs: HashMap::new(),
-            text: Some(s.to_string()),
+            text: s.to_string(),
         }
     }
 
@@ -129,9 +129,9 @@ mod tests {
         MarkupNode {
             node_type: MarkupNodeType::Paragraph,
             content,
-            marks: None,
+            marks: Vec::new(),
             attrs: HashMap::new(),
-            text: None,
+            text: String::new(),
         }
     }
 
@@ -139,9 +139,9 @@ mod tests {
         MarkupNode {
             node_type: MarkupNodeType::Doc,
             content,
-            marks: None,
+            marks: Vec::new(),
             attrs: HashMap::new(),
-            text: None,
+            text: String::new(),
         }
     }
 
@@ -174,6 +174,7 @@ mod tests {
             vec![("href", AttrValue::Str(href.to_string()))],
         )
     }
+
     fn bold(s: &str) -> MarkupNode {
         text_with_marks(s, vec![bold_mark()])
     }
@@ -277,9 +278,9 @@ mod tests {
         MarkupNode {
             node_type: MarkupNodeType::HardBreak,
             content: vec![],
-            marks: Some(marks),
+            marks,
             attrs: HashMap::new(),
-            text: None,
+            text: String::new(),
         }
     }
 
@@ -291,9 +292,9 @@ mod tests {
         MarkupNode {
             node_type,
             content,
-            marks: None,
+            marks: Vec::new(),
             attrs,
-            text: None,
+            text: String::new(),
         }
     }
 
@@ -429,9 +430,9 @@ mod tests {
         MarkupNode {
             node_type: MarkupNodeType::Reference,
             content: vec![],
-            marks: None,
+            marks: Vec::new(),
             attrs: attrs_map,
-            text: None,
+            text: String::new(),
         }
     }
 
