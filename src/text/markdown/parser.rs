@@ -414,6 +414,14 @@ impl<'a> ParserState<'a> {
 
                 self.apply_mark_to_nodes(content, MarkupMarkType::Link, attrs)
             }
+            Node::Blockquote(blockquote) => {
+                let content: Vec<MarkupNode> = blockquote
+                    .children
+                    .iter()
+                    .flat_map(|n| self.convert_nodes(n))
+                    .collect();
+                vec![Self::node(MarkupNodeType::Blockquote, content)]
+            }
             _ => vec![Self::text_node(String::new())],
         }
     }
