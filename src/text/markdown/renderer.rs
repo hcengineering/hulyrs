@@ -5,7 +5,7 @@ use regex::Regex;
 
 use crate::text::{
     AttrValue, MarkupMark, MarkupMarkType, MarkupNode, MarkupNodeType, get_bool_attr, get_num_attr,
-    get_str_attr,
+    get_str_attr, markup_to_html,
 };
 
 const URI_ENCODE_SET: &AsciiSet = &CONTROLS
@@ -167,7 +167,7 @@ impl<'a> MarkdownRenderer<'a> {
                 self.write("```");
                 self.close_block(node);
             }
-            MarkupNodeType::Text => self.text(&node.text, true),
+            MarkupNodeType::Text => self.text(&node.text, false),
             MarkupNodeType::Image => self.image(node),
             MarkupNodeType::File => todo!(),
             MarkupNodeType::Reference => {
@@ -267,8 +267,7 @@ impl<'a> MarkdownRenderer<'a> {
                 self.write("</sub>");
             }
             MarkupNodeType::Table => {
-                let html = self.render_table_html(node);
-                self.write(&html);
+                self.write(&markup_to_html(node));
                 self.close_block(node);
             }
             MarkupNodeType::TableRow => {}
@@ -278,6 +277,7 @@ impl<'a> MarkdownRenderer<'a> {
                 self.write("<!--");
                 self.render_inline(node);
                 self.write("-->");
+                self.close_block(node);
             }
             MarkupNodeType::Markdown => {
                 self.render_inline(node);
@@ -953,60 +953,6 @@ impl<'a> MarkdownRenderer<'a> {
             "()"
         };
         format!("{}{}{}", &wrap[0..1], text, &wrap[1..2])
-    }
-
-    fn render_table_html(&self, node: &MarkupNode) -> String {
-        let mut html = String::from("<table>");
-
-        for row in &node.content {
-            match row.node_type {
-                MarkupNodeType::TableRow => {
-                    html.push_str("<tr>");
-                    for cell in &row.content {
-                        match cell.node_type {
-                            MarkupNodeType::TableCell => {
-                                html.push_str("<td>");
-                                html.push_str(&self.render_table_cell_content(cell));
-                                html.push_str("</td>");
-                            }
-                            MarkupNodeType::TableHeader => {
-                                html.push_str("<th>");
-                                html.push_str(&self.render_table_cell_content(cell));
-                                html.push_str("</th>");
-                            }
-                            _ => {}
-                        }
-                    }
-                    html.push_str("</tr>");
-                }
-                _ => {}
-            }
-        }
-
-        html.push_str("</table>");
-        html
-    }
-
-    fn render_table_cell_content(&self, cell: &MarkupNode) -> String {
-        let mut content = String::new();
-
-        for node in &cell.content {
-            match node.node_type {
-                MarkupNodeType::Text => {
-                    content.push_str(&self.html_esc(&node.text));
-                }
-                MarkupNodeType::Paragraph => {
-                    for child in &node.content {
-                        if let MarkupNodeType::Text = child.node_type {
-                            content.push_str(&self.html_esc(&child.text));
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        content
     }
 }
 

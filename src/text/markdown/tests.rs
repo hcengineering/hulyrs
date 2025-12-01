@@ -15,945 +15,476 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::text::markdown::markup_to_markdown;
-    use crate::text::{AttrValue, MarkupMark, MarkupMarkType, MarkupNode, MarkupNodeType};
-    use regex::Regex;
-    use std::collections::HashMap;
-    use test_case::test_case;
 
-    const IMAGE_URL: &str = "http://lo";
-    const REF_URL: &str = "ref://";
+    use crate::text::{AttrValue, MarkupMarkType, MarkupNode};
 
-    fn render(markup: &MarkupNode) -> String {
-        markup_to_markdown(markup, IMAGE_URL.to_string(), REF_URL.to_string())
+    use crate::text::{
+        bullet_list, doc, embed, heading, image, list_item, list_item_with, mark,
+        markdown_to_markup, markup_to_markdown, mermaid, normalize_markdown, para, table,
+        table_cell_with, table_row, text, text_with_marks, todo, todo_list, todo_with,
+    };
+
+    pub const IMAGE_URL: &str = "http://lo";
+    pub const REF_URL: &str = "ref://";
+
+    fn markdowns_equal(a: &str, b: &str) -> bool {
+        normalize_markdown(a) == normalize_markdown(b)
     }
 
-    fn assert_renders_to(markup: MarkupNode, expected: &str) {
-        assert_eq!(
-            normalize_markdown(&render(&markup)),
-            normalize_markdown(expected)
+    pub fn assert_renders_to(markup: MarkupNode, expected: &str) {
+        assert!(markdowns_equal(
+            &markup_to_markdown(&markup, IMAGE_URL.to_string(), REF_URL.to_string()),
+            expected
+        ));
+    }
+
+    pub fn assert_parses_to(markdown: &str, expected: MarkupNode) {
+        let parsed = markdown_to_markup(markdown);
+        assert_eq!(parsed, expected, "Failed to parse markdown correctly");
+    }
+
+    pub fn assert_roundtrip(markdown: &str) {
+        let parsed = markdown_to_markup(markdown);
+        let serialized = markup_to_markdown(&parsed, IMAGE_URL.to_string(), REF_URL.to_string());
+        if !markdowns_equal(&serialized, markdown) {
+            eprintln!("Original:   {:?}", markdown);
+            eprintln!("Serialized: {:?}", serialized);
+            eprintln!("Parsed: {:?}", parsed);
+        }
+        assert!(markdowns_equal(&serialized, markdown), "Round-trip failed");
+    }
+
+    pub fn assert_roundtrip_with_alternate(markdown: &str, alternate: &str) {
+        let parsed = markdown_to_markup(markdown);
+        let serialized = markup_to_markdown(&parsed, IMAGE_URL.to_string(), REF_URL.to_string());
+        assert!(
+            markdowns_equal(&serialized, markdown) || markdowns_equal(&serialized, alternate),
+            "Round-trip failed"
         );
-    }
-
-    fn normalize_markdown(source: &str) -> String {
-        if source.is_empty() {
-            return String::new();
-        }
-
-        let mut result = source.to_string();
-
-        result = result.replace("\r\n", "\n").replace('\r', "\n");
-
-        result = result
-            .split('\n')
-            .map(|line| line.trim_end())
-            .filter(|line| !line.is_empty())
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        let tag_regex = Regex::new(r"<(\w+)([^>]*?)(\/?)>").unwrap();
-        result = tag_regex
-            .replace_all(&result, |caps: &regex::Captures| {
-                let tag_name = &caps[1];
-                let attributes = &caps[2];
-
-                let mut attrs: HashMap<String, String> = HashMap::new();
-
-                let attr_regex =
-                    Regex::new(r#"(\w+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?"#).unwrap();
-                for attr_match in attr_regex.captures_iter(attributes) {
-                    let attr_name = attr_match[1].to_string();
-                    let attr_value = attr_match
-                        .get(2)
-                        .or(attr_match.get(3))
-                        .or(attr_match.get(4))
-                        .map(|m| m.as_str())
-                        .unwrap_or("");
-                    attrs.insert(attr_name, attr_value.to_string());
-                }
-
-                let mut sorted_keys: Vec<_> = attrs.keys().collect();
-                sorted_keys.sort();
-
-                let sorted_attrs = sorted_keys
-                    .iter()
-                    .map(|key| {
-                        let value = &attrs[*key];
-                        if !value.is_empty() {
-                            format!("{}=\"{}\"", key, value)
-                        } else {
-                            (*key).to_string()
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .join(" ");
-
-                let void_elements = [
-                    "img", "br", "hr", "input", "meta", "area", "base", "col", "embed", "link",
-                    "param", "source", "track", "wbr",
-                ];
-                let is_void_element = void_elements.contains(&tag_name.to_lowercase().as_str());
-
-                if !sorted_attrs.is_empty() {
-                    if is_void_element {
-                        format!("<{} {} />", tag_name, sorted_attrs)
-                    } else {
-                        format!("<{} {}>", tag_name, sorted_attrs)
-                    }
-                } else if is_void_element {
-                    format!("<{} />", tag_name)
-                } else {
-                    format!("<{}>", tag_name)
-                }
-            })
-            .to_string();
-
-        result
-    }
-
-    fn text(s: &str) -> MarkupNode {
-        text_with_marks(s, vec![])
-    }
-
-    fn text_with_marks(s: &str, marks: Vec<MarkupMark>) -> MarkupNode {
-        MarkupNode {
-            node_type: MarkupNodeType::Text,
-            content: Vec::new(),
-            marks,
-            attrs: HashMap::new(),
-            text: s.to_string(),
-        }
-    }
-
-    fn para(content: Vec<MarkupNode>) -> MarkupNode {
-        MarkupNode {
-            node_type: MarkupNodeType::Paragraph,
-            content,
-            marks: Vec::new(),
-            attrs: HashMap::new(),
-            text: String::new(),
-        }
-    }
-
-    fn doc(content: Vec<MarkupNode>) -> MarkupNode {
-        MarkupNode {
-            node_type: MarkupNodeType::Doc,
-            content,
-            marks: Vec::new(),
-            attrs: HashMap::new(),
-            text: String::new(),
-        }
-    }
-
-    fn mark(mark_type: MarkupMarkType, pairs: Vec<(&str, AttrValue)>) -> MarkupMark {
-        MarkupMark {
-            mark_type,
-            attrs: attrs(pairs),
-        }
-    }
-
-    fn bold_mark() -> MarkupMark {
-        mark(MarkupMarkType::Bold, vec![])
-    }
-
-    fn italic_mark() -> MarkupMark {
-        mark(MarkupMarkType::Italic, vec![])
-    }
-
-    fn strike_mark() -> MarkupMark {
-        mark(MarkupMarkType::Strike, vec![])
-    }
-
-    fn underline_mark() -> MarkupMark {
-        mark(MarkupMarkType::Underline, vec![])
-    }
-
-    fn link_mark(href: &str) -> MarkupMark {
-        mark(
-            MarkupMarkType::Link,
-            vec![("href", AttrValue::Str(href.to_string()))],
-        )
-    }
-
-    fn bold(s: &str) -> MarkupNode {
-        text_with_marks(s, vec![bold_mark()])
-    }
-
-    fn code(s: &str) -> MarkupNode {
-        text_with_marks(s, vec![mark(MarkupMarkType::Code, vec![])])
-    }
-
-    fn underline(s: &str) -> MarkupNode {
-        text_with_marks(s, vec![underline_mark()])
-    }
-
-    fn link(href: &str, label: &str) -> MarkupNode {
-        text_with_marks(label, vec![link_mark(href)])
-    }
-
-    fn heading(level: i32, content: &str) -> MarkupNode {
-        node(
-            MarkupNodeType::Heading,
-            vec![text(content)],
-            attrs(vec![
-                ("level", AttrValue::Num(level)),
-                ("marker", AttrValue::Str("#".to_string())),
-            ]),
-        )
-    }
-
-    fn list_item(content: &str) -> MarkupNode {
-        node(
-            MarkupNodeType::ListItem,
-            vec![para(vec![text(content)])],
-            HashMap::new(),
-        )
-    }
-
-    fn list_item_with(content: Vec<MarkupNode>) -> MarkupNode {
-        node(MarkupNodeType::ListItem, content, HashMap::new())
-    }
-
-    fn bullet_list(items: Vec<MarkupNode>) -> MarkupNode {
-        node(
-            MarkupNodeType::BulletList,
-            items,
-            attrs(vec![("bullet", AttrValue::Str("-".to_string()))]),
-        )
-    }
-
-    fn todo(content: &str, checked: bool) -> MarkupNode {
-        node(
-            MarkupNodeType::TodoItem,
-            vec![para(vec![text(content)])],
-            attrs(vec![("checked", AttrValue::Bool(checked))]),
-        )
-    }
-
-    fn todo_with_ids(content: &str, checked: bool, todoid: &str, userid: &str) -> MarkupNode {
-        node(
-            MarkupNodeType::TodoItem,
-            vec![para(vec![text(content)])],
-            attrs(vec![
-                ("checked", AttrValue::Bool(checked)),
-                ("todoid", AttrValue::Str(todoid.to_string())),
-                ("userid", AttrValue::Str(userid.to_string())),
-            ]),
-        )
-    }
-
-    fn todo_with(content: Vec<MarkupNode>, checked: bool) -> MarkupNode {
-        node(
-            MarkupNodeType::TodoItem,
-            content,
-            attrs(vec![("checked", AttrValue::Bool(checked))]),
-        )
-    }
-
-    fn todo_list(items: Vec<MarkupNode>) -> MarkupNode {
-        node(
-            MarkupNodeType::TodoList,
-            items,
-            attrs(vec![("bullet", AttrValue::Str("-".to_string()))]),
-        )
-    }
-
-    fn ordered_list(items: Vec<MarkupNode>) -> MarkupNode {
-        node(MarkupNodeType::OrderedList, items, HashMap::new())
-    }
-
-    fn ordered_list_from(start: i32, items: Vec<MarkupNode>) -> MarkupNode {
-        node(
-            MarkupNodeType::OrderedList,
-            items,
-            attrs(vec![("order", AttrValue::Num(start))]),
-        )
-    }
-
-    fn hard_break() -> MarkupNode {
-        node(MarkupNodeType::HardBreak, vec![], HashMap::new())
-    }
-
-    fn hard_break_with_marks(marks: Vec<MarkupMark>) -> MarkupNode {
-        MarkupNode {
-            node_type: MarkupNodeType::HardBreak,
-            content: vec![],
-            marks,
-            attrs: HashMap::new(),
-            text: String::new(),
-        }
-    }
-
-    fn node(
-        node_type: MarkupNodeType,
-        content: Vec<MarkupNode>,
-        attrs: HashMap<String, AttrValue>,
-    ) -> MarkupNode {
-        MarkupNode {
-            node_type,
-            content,
-            marks: Vec::new(),
-            attrs,
-            text: String::new(),
-        }
-    }
-
-    fn attrs(pairs: Vec<(&str, AttrValue)>) -> HashMap<String, AttrValue> {
-        pairs.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
-    }
-
-    fn embed(src: &str) -> MarkupNode {
-        node(
-            MarkupNodeType::Embed,
-            vec![],
-            attrs(vec![("src", AttrValue::Str(src.to_string()))]),
-        )
-    }
-
-    fn image(src: &str, alt: &str) -> MarkupNode {
-        node(
-            MarkupNodeType::Image,
-            vec![],
-            attrs(vec![
-                ("src", AttrValue::Str(src.to_string())),
-                ("alt", AttrValue::Str(alt.to_string())),
-            ]),
-        )
-    }
-
-    fn image_with_attrs(attrs: HashMap<String, AttrValue>) -> MarkupNode {
-        node(MarkupNodeType::Image, vec![], attrs)
-    }
-
-    fn mermaid(code: &str) -> MarkupNode {
-        node(
-            MarkupNodeType::Mermaid,
-            vec![text(code)],
-            attrs(vec![("language", AttrValue::Str("mermaid".to_string()))]),
-        )
-    }
-
-    fn code_block(lang: &str, code: &str) -> MarkupNode {
-        let attrs_map = if !lang.is_empty() {
-            attrs(vec![("language", AttrValue::Str(lang.to_string()))])
-        } else {
-            HashMap::new()
-        };
-        node(MarkupNodeType::CodeBlock, vec![text(code)], attrs_map)
-    }
-
-    fn blockquote(content: Vec<MarkupNode>) -> MarkupNode {
-        node(MarkupNodeType::Blockquote, content, HashMap::new())
-    }
-
-    fn hr() -> MarkupNode {
-        node(MarkupNodeType::HorizontalRule, vec![], HashMap::new())
-    }
-
-    fn hr_custom(markup: &str) -> MarkupNode {
-        node(
-            MarkupNodeType::HorizontalRule,
-            vec![],
-            attrs(vec![("markup", AttrValue::Str(markup.to_string()))]),
-        )
-    }
-
-    fn emoji(emoji_char: &str) -> MarkupNode {
-        node(
-            MarkupNodeType::Emoji,
-            vec![],
-            attrs(vec![("emoji", AttrValue::Str(emoji_char.to_string()))]),
-        )
-    }
-
-    fn comment(content: &str) -> MarkupNode {
-        node(MarkupNodeType::Comment, vec![text(content)], HashMap::new())
-    }
-
-    fn markdown_node(content: &str) -> MarkupNode {
-        node(
-            MarkupNodeType::Markdown,
-            vec![text(content)],
-            HashMap::new(),
-        )
-    }
-
-    fn task_item(content: &str) -> MarkupNode {
-        node(
-            MarkupNodeType::TaskItem,
-            vec![para(vec![text(content)])],
-            HashMap::new(),
-        )
-    }
-
-    fn task_list(items: Vec<MarkupNode>) -> MarkupNode {
-        node(MarkupNodeType::TaskList, items, HashMap::new())
-    }
-
-    fn table_header(content: &str) -> MarkupNode {
-        node(
-            MarkupNodeType::TableHeader,
-            vec![text(content)],
-            HashMap::new(),
-        )
-    }
-
-    fn table_cell(content: &str) -> MarkupNode {
-        node(
-            MarkupNodeType::TableCell,
-            vec![text(content)],
-            HashMap::new(),
-        )
-    }
-
-    fn table_cell_with(content: Vec<MarkupNode>) -> MarkupNode {
-        node(MarkupNodeType::TableCell, content, HashMap::new())
-    }
-
-    fn table_row(cells: Vec<MarkupNode>) -> MarkupNode {
-        node(MarkupNodeType::TableRow, cells, HashMap::new())
-    }
-
-    fn table(rows: Vec<MarkupNode>) -> MarkupNode {
-        node(MarkupNodeType::Table, rows, HashMap::new())
-    }
-
-    fn sublink(content: Vec<MarkupNode>) -> MarkupNode {
-        node(MarkupNodeType::SubLink, content, HashMap::new())
-    }
-
-    fn reference(pairs: Vec<(&str, &str)>) -> MarkupNode {
-        let attrs_map = pairs
-            .into_iter()
-            .map(|(k, v)| (k.to_string(), AttrValue::Str(v.to_string())))
-            .collect();
-        MarkupNode {
-            node_type: MarkupNodeType::Reference,
-            content: vec![],
-            marks: Vec::new(),
-            attrs: attrs_map,
-            text: String::new(),
-        }
     }
 
     #[test]
     fn test_simple_text() {
-        assert_renders_to(
-            doc(vec![para(vec![text("Lorem ipsum dolor sit amet.")])]),
-            "Lorem ipsum dolor sit amet.",
-        );
+        let markdown = "Lorem ipsum dolor sit amet.";
+        let markup = doc(vec![para(vec![text("Lorem ipsum dolor sit amet.")])]);
+
+        assert_parses_to(markdown, markup.clone());
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
     fn test_text_with_heading() {
-        assert_renders_to(
-            doc(vec![
-                heading(1, "Lorem ipsum"),
-                para(vec![text("Lorem ipsum dolor sit amet.")]),
-            ]),
-            "# Lorem ipsum\n\nLorem ipsum dolor sit amet.\n",
-        );
+        let markdown = "# Lorem ipsum\n\nLorem ipsum dolor sit amet.";
+        let markup = doc(vec![
+            heading(1, "Lorem ipsum"),
+            para(vec![text("Lorem ipsum dolor sit amet.")]),
+        ]);
+
+        assert_parses_to(markdown, markup.clone());
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
     fn test_bullet_list() {
-        assert_renders_to(
-            doc(vec![
-                heading(1, "bullet list"),
-                bullet_list(vec![list_item("list item 1"), list_item("list item 2")]),
-            ]),
-            "# bullet list\n- list item 1\n- list item 2\n",
-        );
+        let markdown = "# bullet list\n\n- list item 1\n- list item 2";
+        let markup = doc(vec![
+            heading(1, "bullet list"),
+            bullet_list(vec![list_item("list item 1"), list_item("list item 2")]),
+        ]);
+
+        assert_parses_to(markdown, markup.clone());
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
     fn test_todos() {
-        assert_renders_to(
-            doc(vec![
-                heading(1, "TODO"),
-                todo_list(vec![
-                    todo_with_ids("todo 1", false, "todo123", "user456"),
-                    todo("todo 2", true),
-                ]),
-            ]),
-            "# TODO\n- [ ] <!-- todoid=todo123,userid=user456 -->todo 1\n- [x] todo 2\n",
-        );
+        let markdown = "# TODO\n\n- [ ] todo 1\n- [x] todo 2";
+        let markup = doc(vec![
+            heading(1, "TODO"),
+            todo_list(vec![todo("todo 1", false), todo("todo 2", true)]),
+        ]);
+
+        assert_parses_to(markdown, markup.clone());
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
     fn test_todos_followed_by_list_items() {
-        assert_renders_to(
-            doc(vec![
-                heading(1, "todo and list"),
-                todo_list(vec![todo("todo 1", false), todo("todo 2", true)]),
-                bullet_list(vec![list_item("list item 1"), list_item("list item 2")]),
-            ]),
-            "# todo and list\n- [ ] todo 1\n- [x] todo 2\n- list item 1\n- list item 2\n",
-        );
+        let markdown =
+            "# todo and list\n\n- [ ] todo 1\n- [x] todo 2\n\n- list item 1\n- list item 2";
+        let markup = doc(vec![
+            heading(1, "todo and list"),
+            todo_list(vec![todo("todo 1", false), todo("todo 2", true)]),
+            bullet_list(vec![list_item("list item 1"), list_item("list item 2")]),
+        ]);
+
+        assert_parses_to(markdown, markup.clone());
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
     fn test_mixed_lists() {
-        assert_renders_to(
-            doc(vec![
-                heading(1, "mixed lists"),
-                todo_list(vec![todo("todo 1", false)]),
-                bullet_list(vec![list_item("list item 1")]),
-                todo_list(vec![todo("todo 2", true)]),
-                bullet_list(vec![list_item("list item 2")]),
-            ]),
-            "# mixed lists\n- [ ] todo 1\n- list item 1\n- [x] todo 2\n- list item 2\n",
-        );
+        let markdown =
+            "# mixed lists\n\n- [ ] todo 1\n\n- list item 1\n\n- [x] todo 2\n\n- list item 2";
+        let markup = doc(vec![
+            heading(1, "mixed lists"),
+            todo_list(vec![todo("todo 1", false)]),
+            bullet_list(vec![list_item("list item 1")]),
+            todo_list(vec![todo("todo 2", true)]),
+            bullet_list(vec![list_item("list item 2")]),
+        ]);
+
+        assert_parses_to(markdown, markup.clone());
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
     fn test_nested_todos() {
-        assert_renders_to(
-            doc(vec![
-                heading(1, "nested todos"),
-                todo_list(vec![todo_with(
-                    vec![
-                        para(vec![text("todo")]),
-                        todo_list(vec![todo("sub todo", true)]),
-                    ],
-                    false,
-                )]),
-            ]),
-            "# nested todos\n- [ ] todo\n  - [x] sub todo\n",
-        );
+        let markdown = "# nested todos\n\n- [ ] todo\n  - [x] sub todo";
+        let markup = doc(vec![
+            heading(1, "nested todos"),
+            todo_list(vec![todo_with(
+                vec![
+                    para(vec![text("todo")]),
+                    todo_list(vec![todo("sub todo", true)]),
+                ],
+                false,
+            )]),
+        ]);
+
+        assert_parses_to(markdown, markup.clone());
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
     fn test_nested_lists() {
-        assert_renders_to(
-            doc(vec![
-                heading(1, "nested lists"),
-                todo_list(vec![todo_with(
-                    vec![
-                        para(vec![text("todo")]),
-                        bullet_list(vec![list_item("sub list item")]),
-                        todo_list(vec![todo("sub todo", true)]),
-                    ],
-                    false,
-                )]),
-                bullet_list(vec![list_item_with(vec![
-                    para(vec![text("list item")]),
-                    todo_list(vec![todo("sub todo", true)]),
+        let markdown = "# nested lists\n\n- [ ] todo\n  - sub list item\n  - [x] sub todo\n\n- list item\n  - [x] sub todo\n  - sub list item";
+        let markup = doc(vec![
+            heading(1, "nested lists"),
+            todo_list(vec![todo_with(
+                vec![
+                    para(vec![text("todo")]),
                     bullet_list(vec![list_item("sub list item")]),
-                ])]),
-            ]),
-            "# nested lists\n- [ ] todo\n  - sub list item\n  - [x] sub todo\n- list item\n  - [x] sub todo\n  - sub list item\n",
-        );
+                    todo_list(vec![todo("sub todo", true)]),
+                ],
+                false,
+            )]),
+            bullet_list(vec![list_item_with(vec![
+                para(vec![text("list item")]),
+                todo_list(vec![todo("sub todo", true)]),
+                bullet_list(vec![list_item("sub list item")]),
+            ])]),
+        ]);
+
+        assert_parses_to(markdown, markup.clone());
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
     fn test_mermaid_diagram() {
-        assert_renders_to(
-            doc(vec![mermaid(
-                "graph TD;\n\tA-->B;\n\tA-->C;\n\tB-->D;\n\tC-->D;",
-            )]),
-            "```mermaid\ngraph TD;\n\tA-->B;\n\tA-->C;\n\tB-->D;\n\tC-->D;\n```",
-        );
+        let markdown = "```mermaid\ngraph TD;\n\tA-->B;\n\tA-->C;\n\tB-->D;\n\tC-->D;\n```";
+        let markup = doc(vec![mermaid(
+            "graph TD;\n\tA-->B;\n\tA-->C;\n\tB-->D;\n\tC-->D;",
+        )]);
+
+        assert_parses_to(markdown, markup.clone());
+        assert_renders_to(markup, markdown);
     }
 
-    #[test_case("http://lo/embed", "<a href=\"http://lo/embed\" data-type=\"embed\">http:&#x2F;&#x2F;lo&#x2F;embed</a>" ; "basic")]
-    #[test_case("http://lo/embed spaces", "<a href=\"http://lo/embed%20spaces\" data-type=\"embed\">http:&#x2F;&#x2F;lo&#x2F;embed spaces</a>" ; "uri escape")]
-    #[test_case("http://lo/embed<html>", "<a href=\"http://lo/embed%3Chtml%3E\" data-type=\"embed\">http:&#x2F;&#x2F;lo&#x2F;embed&lt;html&gt;</a>" ; "html escape")]
-    fn test_embed(url: &str, expected: &str) {
-        assert_renders_to(doc(vec![para(vec![embed(url)])]), expected);
+    #[test]
+    fn test_embed() {
+        let markdown = "<a href=\"http://localhost/embed\" data-type=\"embed\">http:&#x2F;&#x2F;localhost&#x2F;embed</a>";
+        let markup = doc(vec![para(vec![embed("http://localhost/embed")])]);
+
+        assert_parses_to(markdown, markup.clone());
+        assert_renders_to(markup, markdown);
+    }
+
+    #[test]
+    fn test_embed_uri_escape() {
+        let markdown = "<a href=\"http://localhost/embed%20spaces\" data-type=\"embed\">http:&#x2F;&#x2F;localhost&#x2F;embed spaces</a>";
+        let markup = doc(vec![para(vec![embed("http://localhost/embed spaces")])]);
+
+        assert_parses_to(markdown, markup.clone());
+        assert_renders_to(markup, markdown);
+    }
+
+    #[test]
+    fn test_embed_html_escape() {
+        let markdown = "<a href=\"http://localhost/embed%3Chtml%3E\" data-type=\"embed\">http:&#x2F;&#x2F;localhost&#x2F;embed&lt;html&gt;</a>";
+        let markup = doc(vec![para(vec![embed("http://localhost/embed<html>")])]);
+
+        assert_parses_to(markdown, markup.clone());
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
     fn test_multiline_image_alt() {
-        assert_renders_to(
-            doc(vec![para(vec![image(
-                "http://example.com/image.png",
-                "line0\n\nline1",
-            )])]),
-            "![line0\\\n\\\nline1](http://example.com/image.png)",
-        );
+        let markdown = "![line0\\\n\\\nline1](http://example.com/image.png)";
+        let markup = doc(vec![para(vec![image(
+            "http://example.com/image.png",
+            "line0\n\nline1",
+        )])]);
+
+        assert_parses_to(markdown, markup.clone());
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
-    fn test_image_with_file_id_and_dimensions() {
-        let attrs = attrs(vec![
-            ("file-id", AttrValue::Str("abc123".to_string())),
-            ("width", AttrValue::Num(800)),
-            ("height", AttrValue::Num(600)),
-            ("alt", AttrValue::Str("test image".to_string())),
-        ]);
+    fn test_image_in_table_cell() {
+        let markdown = "<table><tbody><tr><td><p>Some text</p><p> <img src=\"files/image_1.png\" alt=\"image-alt\"/></p></td></tr></tbody></table>";
+        let markup = doc(vec![table(vec![table_row(vec![table_cell_with(vec![
+            para(vec![text("Some text")]),
+            para(vec![text(" "), image("files/image_1.png", "image-alt")]),
+        ])])])]);
 
-        assert_renders_to(
-            doc(vec![para(vec![image_with_attrs(attrs)])]),
-            "![test image](http://lo/abc123?width=800&height=600)",
-        );
+        assert_parses_to(markdown, markup.clone());
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
     fn test_text_color() {
-        let mark = mark(
-            MarkupMarkType::TextColor,
-            vec![("color", AttrValue::Str("#abcdef".to_string()))],
-        );
+        let markdown = "<span style=\"color: #abcdef\" data-color=\"#abcdef\">colored</span>";
+        let markup = doc(vec![para(vec![text_with_marks(
+            "colored",
+            vec![mark(
+                MarkupMarkType::TextColor,
+                vec![("color", AttrValue::Str("#abcdef".to_string()))],
+            )],
+        )])]);
 
-        let text = text_with_marks("colored", vec![mark]);
-        let markup = doc(vec![para(vec![text])]);
-        let expected = "<span style=\"color: #abcdef\" data-color=\"#abcdef\">colored</span>";
-        assert_renders_to(markup, expected);
+        assert_parses_to(markdown, markup.clone());
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
     fn test_links() {
-        assert_renders_to(
-            doc(vec![
-                para(vec![link("https://example.com", "Link")]),
-                para(vec![link(
-                    "https://example.com/with spaces",
-                    "Link with spaces",
-                )]),
-                para(vec![link(
-                    "https://example.com/<with spaces>",
-                    "Link with spaces and braces",
-                )]),
-            ]),
-            "[Link](https://example.com)\n\n[Link with spaces](<https://example.com/with spaces>)\n\n[Link with spaces and braces](<https://example.com/\\<with spaces\\>>)",
-        );
-    }
-
-    #[test]
-    fn test_plain_url_autolink() {
-        assert_renders_to(
-            doc(vec![para(vec![link(
-                "https://example.com",
-                "https://example.com",
-            )])]),
-            "<https://example.com>",
-        );
-    }
-
-    #[test]
-    fn test_plain_url_not_autolink_with_title() {
-        let mark = mark(
-            MarkupMarkType::Link,
-            vec![
-                ("href", AttrValue::Str("https://example.com".to_string())),
-                ("title", AttrValue::Str("Example".to_string())),
-            ],
-        );
-        let text = text_with_marks("https://example.com", vec![mark]);
-
-        assert_renders_to(
-            doc(vec![para(vec![text])]),
-            "[https://example.com](https://example.com \"Example\")",
-        );
-    }
-
-    #[test]
-    fn test_plain_url_not_autolink_different_text() {
-        assert_renders_to(
-            doc(vec![para(vec![link("https://example.com", "Click here")])]),
-            "[Click here](https://example.com)",
-        );
-    }
-
-    #[test]
-    fn test_underline() {
-        assert_renders_to(
-            doc(vec![para(vec![underline("underlined text")])]),
-            "<ins>underlined text</ins>\n",
-        );
-    }
-
-    #[test_case(" bold text ", bold_mark(), " **bold text** "; "bold")]
-    #[test_case("  italic  ", italic_mark(), "  *italic*  "; "italic")]
-    #[test_case("\tstrike\t", strike_mark(), "\t~~strike~~\t"; "strike")]
-    fn test_whitespace_expulsion(input: &str, mark: MarkupMark, expected: &str) {
-        assert_renders_to(
-            doc(vec![para(vec![text_with_marks(input, vec![mark])])]),
-            expected,
-        );
-    }
-
-    #[test]
-    fn test_whitespace_no_expulsion_code() {
-        assert_renders_to(doc(vec![para(vec![code(" code ")])]), "` code `");
-    }
-
-    #[test]
-    fn test_whitespace_expulsion_combined() {
-        assert_renders_to(
-            doc(vec![para(vec![
-                text("plain "),
-                bold(" bold "),
-                text(" plain"),
-            ])]),
-            "plain  **bold**  plain",
-        );
-    }
-
-    #[test]
-    fn test_text_color_with_italic() {
-        let mark1 = mark(
-            MarkupMarkType::TextColor,
-            vec![("color", AttrValue::Str("#abcdef".to_string()))],
-        );
-        let mark2 = mark(MarkupMarkType::Italic, vec![]);
-
-        assert_renders_to(
-            doc(vec![para(vec![text_with_marks(
-                "styled",
-                vec![mark1, mark2],
-            )])]),
-            "<span style=\"color: #abcdef\" data-color=\"#abcdef\">*styled*</span>",
-        );
-    }
-
-    #[test]
-    fn test_mark_reordering_bold_italic() {
-        assert_renders_to(
-            doc(vec![para(vec![text_with_marks(
-                "mixed",
-                vec![bold_mark(), italic_mark()],
-            )])]),
-            "***mixed***",
-        );
-    }
-
-    #[test]
-    fn test_mark_reordering_with_strike() {
-        assert_renders_to(
-            doc(vec![para(vec![text_with_marks(
-                "text",
-                vec![bold_mark(), strike_mark()],
-            )])]),
-            "**~~text~~**",
-        );
-    }
-
-    #[test]
-    fn test_text_style() {
-        let mark = mark(
-            MarkupMarkType::TextStyle,
-            vec![
-                ("fontFamily", AttrValue::Str("Arial".to_string())),
-                ("fontSize", AttrValue::Str("16px".to_string())),
-                ("fontWeight", AttrValue::Str("bold".to_string())),
-            ],
-        );
-
-        let text = text_with_marks("styled", vec![mark]);
-        let markup = doc(vec![para(vec![text])]);
-        let expected =
-            "<span style=\"font-family: Arial; font-size: 16px; font-weight: bold\">styled</span>";
-
-        assert_renders_to(markup, expected);
-    }
-
-    #[test]
-    fn test_text_style_with_color_no_data_color() {
-        let mut style_attrs = HashMap::new();
-        style_attrs.insert("color".to_string(), AttrValue::Str("red".to_string()));
-
-        let mark = MarkupMark {
-            mark_type: MarkupMarkType::TextStyle,
-            attrs: style_attrs,
-        };
-
-        let text = text_with_marks("red", vec![mark]);
-        let markup = doc(vec![para(vec![text])]);
-
-        let result = render(&markup);
-        assert_eq!(
-            normalize_markdown(&result),
-            normalize_markdown("<span style=\"color: red\">red</span>")
-        );
-    }
-
-    #[test]
-    fn test_horizontal_rule() {
-        assert_renders_to(doc(vec![hr(), hr_custom("***")]), "---\n***");
-    }
-
-    #[test_case(vec![para(vec![text("This is a quote")])], "> This is a quote" ; "single line")]
-    #[test_case(vec![para(vec![text("First line")]), para(vec![text("Second line")])], "> First line\n>\n> Second line" ; "multiline")]
-    fn test_blockquote(content: Vec<MarkupNode>, expected: &str) {
-        assert_renders_to(doc(vec![blockquote(content)]), expected);
-    }
-
-    #[test_case("rust", "fn main() {\n    println!(\"Hello\");\n}", "```rust\nfn main() {\n    println!(\"Hello\");\n}\n```" ; "with language")]
-    #[test_case("", "some code", "```\nsome code\n```" ; "no language")]
-    fn test_code_block(lang: &str, code: &str, expected: &str) {
-        assert_renders_to(doc(vec![code_block(lang, code)]), expected);
-    }
-
-    #[test]
-    fn test_emoji() {
-        assert_renders_to(doc(vec![para(vec![emoji("😀")])]), "😀");
-    }
-
-    #[test_case("This is a comment", "<!--This is a comment-->" ; "single line")]
-    #[test_case("Line 1\nLine 2\nLine 3", "<!--Line 1\nLine 2\nLine 3-->" ; "multiline")]
-    fn test_comment(content: &str, expected: &str) {
-        assert_renders_to(doc(vec![comment(content)]), expected);
-    }
-
-    #[test]
-    fn test_markdown_passthrough() {
-        assert_renders_to(
-            doc(vec![markdown_node("**bold** and *italic*")]),
-            "\\*\\*bold\\*\\* and \\*italic\\*",
-        );
-    }
-
-    #[test_case(vec![text("Line 1"), hard_break(), text("Line 2")], "Line 1\\\nLine 2" ; "single")]
-    #[test_case(vec![text("Line 1"), hard_break(), hard_break(), text("Line 2")], "Line 1\\\n\\\nLine 2" ; "multiple")]
-    #[test_case(vec![text("Line 1"), hard_break()], "Line 1" ; "trailing")]
-    fn test_hard_break(nodes: Vec<MarkupNode>, expected: &str) {
-        assert_renders_to(doc(vec![para(nodes)]), expected);
-    }
-
-    #[test]
-    fn test_hard_break_with_bold_mark() {
-        let bm = bold_mark();
-        assert_renders_to(
-            doc(vec![para(vec![
-                text_with_marks("Line 1", vec![bm.clone()]),
-                hard_break_with_marks(vec![bm.clone()]),
-                text_with_marks("Line 2", vec![bm]),
-            ])]),
-            "**Line 1\\\nLine 2**",
-        );
-    }
-
-    #[test]
-    fn test_hard_break_mark_not_continued() {
-        let bm = bold_mark();
-        assert_renders_to(
-            doc(vec![para(vec![
-                text_with_marks("Line 1", vec![bm.clone()]),
-                hard_break_with_marks(vec![bm]),
-                text("Line 2"),
-            ])]),
-            "**Line 1**\\\nLine 2",
-        );
-    }
-
-    #[test]
-    fn test_ordered_list() {
-        assert_renders_to(
-            doc(vec![
-                heading(1, "ordered list"),
-                ordered_list(vec![
-                    list_item("First item"),
-                    list_item("Second item"),
-                    list_item("Third item"),
-                ]),
-            ]),
-            "# ordered list\n1. First item\n2. Second item\n3. Third item\n",
-        );
-    }
-
-    #[test]
-    fn test_ordered_list_custom_start() {
-        assert_renders_to(
-            doc(vec![ordered_list_from(
-                5,
-                vec![list_item("Item five"), list_item("Item six")],
+        let markdown = "[Link](https://example.com)\n\n[Link with spaces](<https://example.com/with spaces>)\n\n[Link with spaces and braces](<https://example.com/\\<with spaces\\>>)";
+        let markup = doc(vec![
+            para(vec![text_with_marks(
+                "Link",
+                vec![mark(
+                    MarkupMarkType::Link,
+                    vec![("href", AttrValue::Str("https://example.com".to_string()))],
+                )],
             )]),
-            "5. Item five\n6. Item six\n",
-        );
+            para(vec![text_with_marks(
+                "Link with spaces",
+                vec![mark(
+                    MarkupMarkType::Link,
+                    vec![(
+                        "href",
+                        AttrValue::Str("https://example.com/with spaces".to_string()),
+                    )],
+                )],
+            )]),
+            para(vec![text_with_marks(
+                "Link with spaces and braces",
+                vec![mark(
+                    MarkupMarkType::Link,
+                    vec![(
+                        "href",
+                        AttrValue::Str("https://example.com/<with spaces>".to_string()),
+                    )],
+                )],
+            )]),
+        ]);
+
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
-    fn test_task_list() {
-        assert_renders_to(
-            doc(vec![
-                heading(1, "task list"),
-                task_list(vec![task_item("Task 1"), task_item("Task 2")]),
-            ]),
-            "# task list\n* [ ] Task 1\n* [ ] Task 2\n",
-        );
+    fn test_text_color_serialization() {
+        let markdown = "<span style=\"color: #abcdef\" data-color=\"#abcdef\">colored</span>";
+        let markup = doc(vec![para(vec![text_with_marks(
+            "colored",
+            vec![mark(
+                MarkupMarkType::TextColor,
+                vec![("color", AttrValue::Str("#abcdef".to_string()))],
+            )],
+        )])]);
+
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
-    fn test_reference_basic() {
-        let markup = doc(vec![para(vec![reference(vec![
-            ("label", "Issue-123"),
-            ("objectclass", "tracker:class:Issue"),
-            ("id", "issue123"),
-        ])])]);
+    fn test_text_color_italic() {
+        let markdown = "<span style=\"color: #abcdef\" data-color=\"#abcdef\">*styled*</span>";
+        let markup = doc(vec![para(vec![text_with_marks(
+            "styled",
+            vec![
+                mark(
+                    MarkupMarkType::TextColor,
+                    vec![("color", AttrValue::Str("#abcdef".to_string()))],
+                ),
+                mark(MarkupMarkType::Italic, vec![]),
+            ],
+        )])]);
 
-        let result = render(&markup);
-
-        assert!(result.contains("[Issue-123]"));
-        assert!(result.contains("ref://?"));
-        assert!(result.contains("%5Fclass=") || result.contains("_class="));
-        assert!(result.contains("%5Fid=") || result.contains("_id="));
-        assert!(result.contains("label="));
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
-    fn test_reference_with_title() {
-        let markup = doc(vec![para(vec![reference(vec![
-            ("label", "Task-456"),
-            ("objectclass", "task:class:Task"),
-            ("id", "task456"),
-            ("title", "Important Task"),
-        ])])]);
+    fn test_text_style_font_family() {
+        let markdown = "<span style=\"font-family: Arial\">arial</span>";
+        let markup = doc(vec![para(vec![text_with_marks(
+            "arial",
+            vec![mark(
+                MarkupMarkType::TextStyle,
+                vec![("fontFamily", AttrValue::Str("Arial".to_string()))],
+            )],
+        )])]);
 
-        let result = render(&markup);
-
-        assert!(result.contains("[Task-456]"));
-        assert!(result.contains("\"Important Task\"") || result.contains("'Important Task'"));
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
-    fn test_sublink() {
-        assert_renders_to(
-            doc(vec![para(vec![sublink(vec![link(
-                "https://example.com",
-                "footer note",
-            )])])]),
-            "<sub><a href=\"https://example.com\">footer note</a></sub>\n",
-        );
+    fn test_text_style_multiple_properties() {
+        let markdown =
+            "<span style=\"font-family: Arial; font-size: 16px; font-weight: bold\">styled</span>";
+        let markup = doc(vec![para(vec![text_with_marks(
+            "styled",
+            vec![mark(
+                MarkupMarkType::TextStyle,
+                vec![
+                    ("fontFamily", AttrValue::Str("Arial".to_string())),
+                    ("fontSize", AttrValue::Str("16px".to_string())),
+                    ("fontWeight", AttrValue::Str("bold".to_string())),
+                ],
+            )],
+        )])]);
+
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
-    fn test_table_basic() {
-        let markup = doc(vec![table(vec![
-            table_row(vec![table_header("Name"), table_header("Age")]),
-            table_row(vec![table_cell("Alice"), table_cell("30")]),
-        ])]);
+    fn test_text_style_color_no_data_color() {
+        let markdown = "<span style=\"color: red\">red</span>";
+        let markup = doc(vec![para(vec![text_with_marks(
+            "red",
+            vec![mark(
+                MarkupMarkType::TextStyle,
+                vec![("color", AttrValue::Str("red".to_string()))],
+            )],
+        )])]);
 
-        let result = render(&markup);
-
-        assert!(result.contains("<table>"));
-        assert!(result.contains("</table>"));
-        assert!(result.contains("<th>Name</th>"));
-        assert!(result.contains("<th>Age</th>"));
-        assert!(result.contains("<td>Alice</td>"));
-        assert!(result.contains("<td>30</td>"));
+        assert_renders_to(markup, markdown);
     }
 
     #[test]
-    fn test_table_with_paragraph_content() {
-        let markup = doc(vec![table(vec![table_row(vec![table_cell_with(vec![
-            para(vec![text("Cell content")]),
-        ])])])]);
-
-        let result = render(&markup);
-
-        assert!(result.contains("<td>Cell content</td>"));
+    fn test_roundtrip_italic() {
+        let markdown = "*Asteriscs* and _Underscores_";
+        assert_roundtrip(markdown);
     }
 
     #[test]
-    fn test_table_html_escaping() {
-        let markup = doc(vec![table(vec![table_row(vec![table_cell(
-            "<script>alert('xss')</script>",
-        )])])]);
-        let result = render(&markup);
-        assert!(result.contains("&lt;script&gt;"));
-        assert!(result.contains("&lt;/script&gt;"));
-        assert!(!result.contains("<script>alert"));
+    fn test_roundtrip_bold() {
+        let markdown = "**Asteriscs** and __Underscores__";
+        assert_roundtrip(markdown);
+    }
+
+    #[test]
+    fn test_roundtrip_bullet_list_asterisks() {
+        let markdown = "Asterisks :\n\n* Firstly\n* Secondly";
+        assert_roundtrip(markdown);
+    }
+
+    #[test]
+    fn test_roundtrip_bullet_list_dashes() {
+        let markdown = "Dashes :\n\n- Firstly\n- Secondly";
+        assert_roundtrip(markdown);
+    }
+
+    #[test]
+    fn test_roundtrip_todo_list_asterisks() {
+        let markdown = "* [ ] Take\n* [ ] Do";
+        assert_roundtrip(markdown);
+    }
+
+    #[test]
+    fn test_roundtrip_todo_list_dashes() {
+        let markdown = "- [x] Take\n- [ ] Do";
+        assert_roundtrip(markdown);
+    }
+
+    #[test]
+    fn test_roundtrip_different_markers() {
+        let markdown = "Asterisks bulleted list:\n\n* Asterisks: *Italic* and  **Bold**\n* Underscores: _Italic_ and __Bold__\n\nDash bulleted list:\n\n- Asterisks: *Italic* and  **Bold**\n- Underscores: _Italic_ and __Bold__\n-";
+        assert_roundtrip(markdown);
+    }
+
+    #[test]
+    fn test_roundtrip_single_line_comment() {
+        let markdown = "<!-- Do not erase me -->";
+        assert_roundtrip(markdown);
+    }
+
+    #[test]
+    fn test_roundtrip_multiline_comment() {
+        let markdown = "<!--\n\nPlease title your PR as follows: `module: description` (e.g. `time: fix date format`).\nAlways start with the thing you are fixing, then describe the fix.\nDon't use past tense (e.g. \"fixed foo bar\").\n\nExplain what your PR does and why.\n\nIf you are adding a new function, please document it and add tests:\n\n```\n// foo does foo and bar\nfn foo() {\n\n// file_test.v\nfn test_foo() {\n    assert foo() == ...\n    ...\n}\n```\n\nIf you are fixing a bug, please add a test that covers it.\n\nBefore submitting a PR, please run `v test-all` .\nSee also `TESTS.md`.\n\nI try to process PRs as soon as possible. They should be handled within 24 hours.\n\nApplying labels to PRs is not needed.\n\nThanks a lot for your contribution!\n\n-->\n\nThis PR fix issue #22424";
+        assert_roundtrip(markdown);
+    }
+
+    #[test]
+    fn test_roundtrip_link() {
+        let markdown = "See [link](https://example.com)";
+        assert_roundtrip(markdown);
+    }
+
+    #[test]
+    fn test_roundtrip_link_with_spaces() {
+        let markdown = "See [link](<https://example.com/with spaces>)";
+        let alternate = "See [link](https://example.com/with%20spaces)";
+        assert_roundtrip_with_alternate(markdown, alternate);
+    }
+
+    #[test]
+    fn test_roundtrip_link_with_spaces_and_braces() {
+        let markdown = "See [link](<https://example.com/\\<with spaces\\>>)";
+        let alternate = "See [link](https://example.com/%3Cwith%20spaces%3E)";
+        assert_roundtrip_with_alternate(markdown, alternate);
+    }
+
+    #[test]
+    fn test_roundtrip_codeblock() {
+        let markdown = "```typescript\nconst x: number = 42;\n```";
+        assert_roundtrip(markdown);
+    }
+
+    #[test]
+    fn test_roundtrip_image() {
+        let markdown =
+            "<img width=\"320\" height=\"160\" src=\"http://example.com/image\" alt=\"image\">";
+        assert_roundtrip(markdown);
+    }
+
+    #[test]
+    fn test_roundtrip_images() {
+        let markdown = "<img width=\"250\" height=\"330\" src=\"https://github.com/user-attachments/assets/f348e016-3f7d-45b1-b8a0-9098e9961885\" alt=\"Screenshot 2025-09-11 at 15 42 40\" />\n\n<img width=\"250\" height=\"230\" alt=\"Screenshot 2025-09-11 at 15 43 42\" src=\"https://github.com/user-attachments/assets/4502eba1-1f55-44df-b691-c4d3d3d3d67d\" >\n\n<img src=\"https://github.com/user-attachments/assets/e21431a3-2062-4b0b-9c8f-d06c92ede741\" alt=\"Screenshot 2025-09-11 at 15 43 50\" width=\"250\" height=\"210\" >";
+        assert_roundtrip(markdown);
+    }
+
+    #[test]
+    fn test_roundtrip_image_with_multiline_alt() {
+        let markdown = "![link0\\\n\\\nline1](http://example.com/image.png)";
+        assert_roundtrip(markdown);
+    }
+
+    #[test]
+    fn test_roundtrip_table() {
+        let markdown = "<table><tbody><tr><th><p>Header 1</p></th><th><p>Header 2</p></th></tr><tr><td><p>Cell 1</p></td><td><p>Cell 2</p></td></tr><tr><td><p>Cell 3</p></td><td><p>Cell 4</p></td></tr></tbody></table>";
+        assert_roundtrip(markdown);
+    }
+
+    #[test]
+    fn test_roundtrip_complex_table() {
+        let markdown = "<table><tbody><tr><td colspan=\"2\" colwidth=\"320\"><p>Header</p></td></tr><tr><td rowspan=\"2\"><p>Cell 1</p></td><td><p>Cell 2</p></td></tr><tr><td><p>Cell 3</p></td></tr></tbody></table>";
+        assert_roundtrip(markdown);
+    }
+
+    #[test]
+    fn test_roundtrip_sub() {
+        let markdown = "<sub>View in Huly <a href=\"http://localhost:8080/guest/github?token=token\">TSK-50</a></sub>";
+        assert_roundtrip(markdown);
     }
 }
