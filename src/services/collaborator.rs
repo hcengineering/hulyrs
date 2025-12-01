@@ -25,6 +25,7 @@ use crate::config::Config;
 use crate::services::ResponseExt;
 use crate::services::core::WorkspaceUuid;
 use crate::services::core::classes::{Markup, Ref};
+use crate::text::MarkupNode;
 use crate::{Error, Result};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -38,6 +39,12 @@ pub struct GetContentRequest {
 #[serde(rename_all = "camelCase")]
 pub struct GetContentResponse {
     pub content: HashMap<String, Markup>,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct UpdateContentRequest {
+    content: HashMap<String, Markup>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -86,7 +93,7 @@ impl CollaboratorClient {
         })
     }
 
-    pub async fn get_content(
+    pub async fn get_markup(
         &self,
         document: &CollaborativeDoc,
         source: Option<Ref>,
@@ -102,6 +109,15 @@ impl CollaboratorClient {
             .get(&document.object_attr)
             .cloned()
             .unwrap_or_default())
+    }
+
+    pub async fn update_markup(&self, document: &CollaborativeDoc, markup: Markup) -> Result<()> {
+        let mut content = HashMap::new();
+        content.insert(document.object_attr.clone(), markup);
+
+        let payload = UpdateContentRequest { content };
+
+        self.rpc::<()>(document, "updateContent", payload).await
     }
 
     fn force_http_scheme(mut url: Url) -> Url {
@@ -163,6 +179,8 @@ impl CollaboratorClient {
             .await?;
 
         let rpc_response: RpcResponse<R> = response.json_body().await?;
+
+        println!("RPC Response: {:?}", rpc_response);
 
         if let Some(error) = rpc_response.error {
             // TODO: map error to ServiceError variant
