@@ -17,8 +17,6 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{self as json, Value};
 use std::collections::HashMap;
-use std::sync::LazyLock;
-use std::sync::atomic::AtomicUsize;
 
 use super::{
     Transaction,
@@ -31,26 +29,8 @@ use crate::services::core::tx::{Tx, TxCUD, TxCreateDoc, TxRemoveDoc};
 use crate::services::core::{Account, FindResult, PersonId};
 use crate::services::transactor::backend::Backend;
 use crate::services::transactor::methods::Method;
+use crate::services::transactor::utils::generate_object_id;
 use crate::{Error, Result};
-
-static COUNT: AtomicUsize = AtomicUsize::new(0);
-static RANDOM: LazyLock<String> = LazyLock::new(|| {
-    format!(
-        "{:6X}{:4X}",
-        rand::random::<u32>().wrapping_mul(1 << 24),
-        rand::random::<u32>().wrapping_mul(1 << 16)
-    )
-});
-
-pub(crate) fn generate_object_id() -> Ref {
-    let count = COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let mut timestamp = Utc::now().timestamp() / 1000;
-    if timestamp < 0 {
-        timestamp = 0;
-    }
-
-    format!("{timestamp:08X}{}{count}", &*RANDOM)
-}
 
 #[derive(Default, Debug, derive_builder::Builder, Clone)]
 pub struct CreateDocument<C: Serialize> {

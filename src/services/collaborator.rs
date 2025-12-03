@@ -25,7 +25,6 @@ use crate::config::Config;
 use crate::services::ResponseExt;
 use crate::services::core::WorkspaceUuid;
 use crate::services::core::classes::{Markup, Ref};
-use crate::text::MarkupNode;
 use crate::{Error, Result};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

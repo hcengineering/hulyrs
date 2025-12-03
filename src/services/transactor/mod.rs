@@ -38,6 +38,7 @@ pub mod methods;
 pub mod person;
 pub mod subscription;
 pub mod tx;
+pub mod utils;
 
 pub trait Transaction {
     fn to_value(self) -> crate::Result<Value>;

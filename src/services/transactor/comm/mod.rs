@@ -22,7 +22,7 @@ use crate::services::JsonClient;
 use crate::services::core::classes::Ref;
 use crate::services::core::tx::{Tx, TxDomainEvent};
 use crate::services::transactor::backend::http::HttpBackend;
-use crate::services::transactor::document::generate_object_id;
+use crate::services::transactor::utils::generate_object_id;
 
 mod message;
 pub use message::*;
