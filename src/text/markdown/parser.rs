@@ -422,7 +422,7 @@ impl<'a> ParserState<'a> {
                     .collect();
                 vec![Self::node(MarkupNodeType::Blockquote, content)]
             }
-            _ => vec![Self::text_node(String::new())],
+            _ => vec![],
         }
     }
 
