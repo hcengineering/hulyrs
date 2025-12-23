@@ -117,7 +117,13 @@ impl HasId for FavoriteCard {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
-pub struct CardSpace;
+#[serde(rename_all = "camelCase")]
+pub struct CardSpace {
+    #[serde(rename = "_id")]
+    pub id: String,
+    pub name: String,
+    pub types: Vec<String>,
+}
 
 impl Class for CardSpace {
     const CLASS: &'static str = card::class::CardSpace;
